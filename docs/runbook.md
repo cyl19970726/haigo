@@ -54,6 +54,12 @@ docker compose up -d postgres hasura bff
    aptos move test
    aptos move publish --profile testnet
    ```
+4. 若测试网账户余额不足，先通过官方 Faucet 领取测试币：
+   ```bash
+   aptos account fund-with-faucet --account <YOUR_ACCOUNT_ADDRESS> --amount 100000000 --url https://faucet.testnet.aptoslabs.com
+   ```
+   - 上述命令一次领取 0.1 APT，可按需重复；也可访问 https://faucet.testnet.aptoslabs.com/ 使用网页端。
+   - 团队内部若提供集中钱包，可参考内部流程从共享钱包转账测试币。
 4. 部署后记录模块地址，更新 `packages/shared/config/aptos.ts`。
 5. 使用 `aptos account list` 或官方 Indexer 查询事件，确保部署成功。
 
