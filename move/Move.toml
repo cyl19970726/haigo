@@ -1,0 +1,15 @@
+[package]
+name = "Haigo"
+version = "0.0.1"
+authors = ["Haigo Platform Engineering"]
+license = "Apache-2.0"
+
+[dependencies]
+AptosFramework = { git = "https://github.com/aptos-labs/aptos-core.git", subdir = "aptos-move/framework/aptos-framework", rev = "main" }
+
+[addresses]
+haigo = "_"
+std = "0x1"
+
+[dev-addresses]
+haigo = "0xA11CE"

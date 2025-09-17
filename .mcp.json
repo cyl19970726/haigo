@@ -1,0 +1,30 @@
+{
+  "mcpServers": {
+    "aptos-mcp": {
+      "command": "npx",
+      "args": ["-y", "@aptos-labs/aptos-mcp"],
+      "type": "stdio",
+      "env": {
+        "APTOS_BOT_KEY": "bot_TxEHabUQQJ_G52vwzhjKwzDaDYACaghKU7DcyUGCTRz8"
+      }
+    },
+    "project-api": {
+      "type": "sse",
+      "url": "https://api.haigo.com/mcp",
+      "headers": {
+        "Authorization": "Bearer ${API_KEY}",
+        "X-Project-ID": "haigo"
+      }
+    },
+    "local-tools": {
+      "command": "node",
+      "args": [
+        "${PROJECT_ROOT}/scripts/mcp-tools.js"
+      ],
+      "env": {
+        "PROJECT_ENV": "development",
+        "DATABASE_URL": "${DATABASE_URL}"
+      }
+    }
+  }
+}

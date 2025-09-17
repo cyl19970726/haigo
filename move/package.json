@@ -1,0 +1,8 @@
+{
+  "name": "@haigo/move",
+  "private": true,
+  "scripts": {
+    "compile": "./scripts/run-compile.sh",
+    "test": "./scripts/run-tests.sh"
+  }
+}

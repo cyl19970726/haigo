@@ -1,0 +1,28 @@
+# HaiGo 架构说明（PoC v0）
+
+## Table of Contents
+
+- [HaiGo 架构说明（PoC v0）](#table-of-contents)
+  - [Introduction](./introduction.md)
+    - [Starter Template or Existing Project](./introduction.md#starter-template-or-existing-project)
+    - [Change Log](./introduction.md#change-log)
+  - [High Level Architecture](./high-level-architecture.md)
+    - [Technical Summary](./high-level-architecture.md#technical-summary)
+    - [Platform and Infrastructure Choice](./high-level-architecture.md#platform-and-infrastructure-choice)
+    - [Repository Structure](./high-level-architecture.md#repository-structure)
+  - [1. 架构目标与范围](./1-架构目标与范围.md)
+  - [2. 系统分层概览](./2-系统分层概览.md)
+    - [2.1 全栈交互示意图](./2-系统分层概览.md#21-全栈交互示意图)
+  - [3. 链上合约设计](./3-链上合约设计.md)
+  - [4. 链下服务与数据流](./4-链下服务与数据流.md)
+    - [4.1 BFF / Media Ingestor](./4-链下服务与数据流.md#41-bff-media-ingestor)
+    - [4.2 数据模型定义](./4-链下服务与数据流.md#42-数据模型定义)
+    - [4.3 媒体存储策略](./4-链下服务与数据流.md#43-媒体存储策略)
+    - [4.4 BFF API 接口规范](./4-链下服务与数据流.md#44-bff-api-接口规范)
+    - [4.5 Hasura GraphQL 摘要](./4-链下服务与数据流.md#45-hasura-graphql-摘要)
+    - [4.6 核心接口与类设计](./4-链下服务与数据流.md#46-核心接口与类设计)
+  - [5. 前端体验](./5-前端体验.md)
+  - [6. 部署与环境](./6-部署与环境.md)
+  - [7. 安全、合规与运维](./7-安全合规与运维.md)
+  - [8. 演进路线](./8-演进路线.md)
+  - [9. 附件](./9-附件.md)

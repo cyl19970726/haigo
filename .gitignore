@@ -1,3 +1,4 @@
 # BMAD (local only)
 .bmad-core/
 .bmad-*/
+node_modules

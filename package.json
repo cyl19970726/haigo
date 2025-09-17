@@ -1,0 +1,30 @@
+{
+  "name": "haigo",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@8.15.1",
+  "scripts": {
+    "bootstrap": "pnpm install",
+    "dev": "pnpm -r --parallel dev",
+    "dev:web": "pnpm --filter @haigo/web dev",
+    "dev:bff": "pnpm --filter @haigo/bff start:dev",
+    "lint": "pnpm -r lint",
+    "test": "pnpm -r test",
+    "build": "pnpm --filter @haigo/web build && pnpm --filter @haigo/bff build",
+    "move:compile": "pnpm --filter @haigo/move compile",
+    "move:test": "pnpm --filter @haigo/move test"
+  },
+  "workspaces": [
+    "move",
+    "apps/*",
+    "packages/*"
+  ],
+  "pnpm": {
+    "overrides": {
+      "@aptos-connect/wallet-adapter-plugin": "2.5.2"
+    }
+  },
+  "devDependencies": {
+    "@types/node": "20.11.30"
+  }
+}

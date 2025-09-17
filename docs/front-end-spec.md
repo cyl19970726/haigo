@@ -3,380 +3,364 @@
 ## Introduction
 This document defines the user experience goals, information architecture, user flows, and visual design specifications for HaiGo 海行’s user interface. It serves as the foundation for visual design and frontend development, ensuring a cohesive and user-centered experience.
 
-## Overall UX Goals & Principles
+### Overall UX Goals & Principles
+#### Target User Personas
+- **跨境商家运营经理**：需要快速上手下单、追踪仓储/理赔进度，并验证仓主信用与媒体哈希。
+- **家庭仓仓主/团队**：关注待办任务、质押状态、异常告警及履约激励，偏好移动端或平板操作。
+- **平台运营与合规人员**：要求对网络健康度、索引延迟、审计导出等有全局视图并可快速响应。
 
-### Target User Personas
-- 商家/卖家（跨境卖家）：需要快速上手、清晰的费用与状态、可追溯凭证。
-- 家庭仓/仓主：高效处理订单、入/出库指引明确、信用可提升（质押/评分）。
-- 平台/社区（运营/审核）：全局透明、风控合规模块、激励与数据看板。
+#### Usability Goals
+- 首次下单引导：新商家在 5 分钟内完成仓库选择和费用确认。
+- 订单追踪效率：订单生命周期主要状态在 2 次点击内可见，关键证据链接清晰。
+- 风险反馈及时性：理赔、质押告警在 1 分钟内以通知与标记呈现，并可溯源链上哈希。
+- 多语言一致性：界面与报表在语言或时区切换后无需重复学习。
 
-### Usability Goals
-- 新手 5 分钟完成钱包绑定与基础资料提交。
-- 商家下单 ≤3 步核心流程，关键状态一屏可见。
-- 入/出库拍照/取证操作 ≤2 步，失败有可恢复引导。
-- 重要操作有明确确认与撤销窗口，错误率可控。
-- 可验证：链上状态/哈希可视化且可一键跳转浏览器。
+#### Design Principles
+1. **透明可信** — 始终暴露链上事件、媒体哈希验证与质押权重，让用户理解可信来源。
+2. **流程导向** — 结合卡片时间线与分步流程，确保关键任务有清晰的下一步。
+3. **操作弹性** — 支持桌面与移动场景，提供适合仓主的快速操作入口。
+4. **风险先行** — 在页面顶部或关键节点突出异常警示、签名风险提示与合规须知。
+5. **模块化可扩展** — UI 组件保持一致样式，方便未来扩展 KYC、更多货币等功能。
 
-### Design Principles
-1. 明晰优先：状态、费用与风险提示更显著。
-2. 渐进暴露：基础—高级配置按需展开，减少认知负担。
-3. 可验证可信：链上信息可视标识 + 一键跳转区块浏览器。
-4. 一致与可预期：跨模块操作与组件模式统一。
-5. 可访问性默认：键盘可达、对比度、语义化标签等到位。
-
-## Change Log
-| Date       | Version | Description                                                            | Author            |
-|------------|---------|------------------------------------------------------------------------|-------------------|
-| 2025-09-17 | v0.2    | Added design system foundations, data/state matrix, responsive & a11y | Sally (UX Expert) |
-| 2025-09-16 | v0.1    | Initial UX spec draft (intro, UX goals)                                | Sally (UX Expert) |
+### Change Log
+| Date | Version | Description | Author |
+| --- | --- | --- | --- |
+| 2025-09-17 | v0.1 | 初稿：完成 UX 目标、IA、核心流程与设计规范 | Sally (UX)
 
 ## Information Architecture (IA)
-
-### Sitemap
+### Site Map / Screen Inventory
 ```mermaid
-flowchart TD
-    A["App Shell / Landing"] --> B["Dashboard"]
-    A --> C["Warehouses / Browse"]
-    A --> D["Orders"]
-    A --> E["Logistics"]
-    A --> F["Finance"]
-    A --> G["Profile"]
-    A --> H["Admin / Compliance"]
+graph TD
+    L[Landing / Wallet Connect] --> M[Merchant Workspace]
+    L --> W[Warehouse Portal]
+    L --> O[Ops & Compliance Console]
 
-    B --> B1["Seller Overview"]
-    B --> B2["Warehouse Owner Overview"]
-    B --> B3["Platform Ops Overview"]
+    subgraph Merchant Workspace
+        M --> MW1[Warehouse Discovery]
+        MW1 --> MW1a[Warehouse Detail]
+        M --> MW2[Order Timeline]
+        MW2 --> MW2a[Order Detail & Evidence]
+        M --> MW3[Insurance Center]
+        M --> MW4[Settings & Identity]
+    end
 
-    C --> C1["Search & Filters"]
-    C --> C2["Warehouse Detail"]
-    C2 --> C2a["Capacity & Pricing"]
-    C2 --> C2b["Staking / Credit Badge"]
-    C2 --> C2c["Ratings & Reviews"]
+    subgraph Warehouse Portal
+        W --> WW1[Task Queue]
+        WW1 --> WW1a[Inbound Handling]
+        WW1 --> WW1b[Outbound Handling]
+        W --> WW2[Stake & Performance]
+        W --> WW3[Notifications]
+    end
 
-    D --> D1["Create Order"]
-    D --> D2["Order List"]
-    D --> D3["Order Details"]
-    D3 --> D3a["On-chain State & Tx Links"]
-    D3 --> D3b["Fees & Insurance"]
-    D3 --> D3c["Dispute / Claim"]
+    subgraph Ops & Compliance Console
+        O --> OO1[Network Dashboard]
+        O --> OO2[Alert Center]
+        O --> OO3[Audit & Export]
+        OO3 --> OO3a[Media Hash Verification]
+    end
 
-    E --> E1["Inbound (入库)"]
-    E1 --> E1a["Capture Proof: Photos / Docs"]
-    E1 --> E1b["Content Hash & Upload"]
-    E1 --> E1c["Post On-chain Event"]
-
-    E --> E2["Outbound (出库)"]
-    E2 --> E2a["Capture Proof"]
-    E2 --> E2b["Content Hash & Upload"]
-    E2 --> E2c["Post On-chain Event"]
-
-    E --> E3["Shipments / Tracking"]
-    E3 --> E3a["Carrier / Tracking Number"]
-    E3 --> E3b["Milestones + Hashes"]
-
-    F --> F1["Balances & Payouts"]
-    F --> F2["Deposits / Staking (APT / USDT)"]
-    F --> F3["Invoices & Receipts"]
-    F --> F4["Insurance & Claims"]
-
-    G --> G1["Account & KYC"]
-    G --> G2["Wallet Binding"]
-    G --> G3["Notifications"]
-    G --> G4["Security Settings"]
-
-    H --> H1["Moderation / Reviews"]
-    H --> H2["Risk & Compliance"]
-    H --> H3["Metrics & Incentives"]
+    MW2a --> OO2
+    WW3 --> OO2
 ```
 
 ### Navigation Structure
-- Primary Navigation: Dashboard, Warehouses, Orders, Logistics, Finance, Profile
-- Role-adaptive shortcuts: Seller → Create Order; Warehouse Owner → Inbound/Outbound; Platform → Admin
-- Secondary Navigation: Orders (List, Create, Details); Logistics (Inbound, Outbound, Shipments); Finance (Staking, Payouts, Invoices, Insurance)
-- Breadcrumbs: Section > List > Detail (e.g., Orders > List > Order #HG-2025-001), preserve filter/sort context
+**Primary Navigation:** Dashboard, Warehouses, Orders, Insurance, Analytics, Alerts
 
-### IA Rationale
-- 映射 PRD 核心流程（注册/质押、下单、入/出库、金融、理赔）
-- 角色上下文分离，突出高频操作
-- 链上可验证信息（状态、TxHash、Explorer 链接）为一等公民
+**Secondary Navigation:** Contextual tabs per module（例如 Orders：Timeline、Evidence Vault、Payments；Warehouses：List、Map、Rankings；Analytics：KPIs、Geo View、Reports）
+
+**Breadcrumb Strategy:** Module → Sub-area → Record（示例：`Orders > 2025-Q1 Imports > ORDER-12345`），并提供快速返回状态机总览的链接。
 
 ## User Flows
+### 商家创建并支付订单
+**User Goal:** 商家完成仓库选择并一次性支付仓储费与保险费，获取链上记录。
 
-### 商家创建订单（Create Order）
-**User Goal:** 选择家庭仓、完成费用/保险支付，上链记录
+**Entry Points:** Dashboard CTA “创建订单”、仓库详情页“选择此仓库”、运营发起的补单链接。
 
-**Entry Points:** 仓库详情“立即下单”；Dashboard 快捷入口；历史订单复用
-
-**Success Criteria:** 状态=已创建/已支付，链上生成订单记录与支付 Tx
-
-```mermaid
-flowchart TD
-  A["仓库详情 / 下单入口"] --> B["填写订单参数: 件数 / 周期 / 保险"]
-  B --> C["费用预估 & 拆分: 仓储 / 保险 / 网络费"]
-  C --> D{"钱包连接?"}
-  D -- 否 --> E["引导连接钱包 / 绑定"]
-  D -- 是 --> F["确认订单摘要"]
-  F --> G["链上支付 / 提交订单"]
-  G --> H{"Tx 成功?"}
-  H -- 是 --> I["生成订单 ID，状态 = 已创建，记录 TxHash"]
-  H -- 否 --> J["失败提示，可重试 / 稍后支付"]
-  I --> K["跳转订单详情，展示链上状态 / 浏览器链接"]
-```
-
-Edge Cases & Error Handling:
-- 钱包未连接/网络切换失败；Gas 偏差大；支付拒签；幂等冲突
-
-Notes: 订单详情固定展示 TxHash 与一键跳转
-
-### 仓主入库（Inbound/存证）
-**User Goal:** 入库并上传取证（链下存储+链上哈希），更新状态
-
-**Entry Points:** 仓主 Dashboard 待处理；订单详情“入库”
-
-**Success Criteria:** 入库完成；链上入库事件、内容哈希、快递单号记录
+**Success Criteria:** 生成唯一 `record_uid`，费用明细与交易哈希可查看，订单时间线进入 `ORDER_CREATED` 状态并提示下一步骤。
 
 ```mermaid
 flowchart TD
-  A["订单详情 - 入库"] --> B["录入快递单号 / 备注"]
-  B --> C["上传图片 / 视频 / PDF"]
-  C --> D["计算内容哈希"]
-  D --> E["上传对象存储"]
-  E --> F["上链入库事件 (单号 / 时间戳 / 哈希)"]
-  F --> G{"Tx 成功?"}
-  G -- 是 --> H["状态 = 已入库，展示哈希 & Tx"]
-  G -- 否 --> I["失败提示，可重试 / 暂存待上传"]
+    A[连接钱包并验证身份] --> B[选择待出货批次]
+    B --> C[筛选并比较可用仓库]
+    C --> D[查看仓库详情/质押/媒体记录]
+    D --> E[填写订单信息 + 上传链下档案哈希]
+    E --> F[确认费用拆解与保险费率]
+    F --> G{确认签名?}
+    G -- 是 --> H[钱包签名并提交交易]
+    H --> I[显示区块哈希与订单 record_uid]
+    I --> J[跳转订单时间线视图]
+    G -- 否 --> K[返回费用确认或取消]
 ```
 
-Edge Cases: 断点续传、哈希重算、多文件聚合、隐私遮挡
+**Edge Cases & Error Handling:**
+- 钱包余额不足或费率变化 → 显示更新后的费用并重新签名。
+- 媒体哈希未提供 → 禁用提交按钮并提示必填。
+- Aptos 交易失败 → 展示错误原因与重试入口。
 
-### 仓主出库（Outbound/存证）
-**User Goal:** 出库并上传取证，更新状态与物流跟踪
+**Notes:** 在费用确认步骤提前展示 Gas 预估；签名成功后提供区块浏览器链接与“复制哈希”操作。
 
-**Entry Points:** 待处理订单；订单详情“出库”
+### 仓主处理入库与出库
+**User Goal:** 仓主按状态机要求提交媒体证据，使订单顺利流转。
 
-**Success Criteria:** 状态=已出库；记录快递单号、内容哈希与链上事件
+**Entry Points:** 仓主任务队列、移动端推送通知、订单详情页状态提醒。
+
+**Success Criteria:** 入库/出库事件成功上链，订单状态进入 `WAREHOUSE_IN` 或 `WAREHOUSE_OUT`，并更新质押信用得分。
 
 ```mermaid
 flowchart TD
-  A["订单详情 - 出库"] --> B["录入承运商 / 快递单号"]
-  B --> C["上传出库照片 / 清单"]
-  C --> D["计算哈希并链下存储"]
-  D --> E["上链出库事件 (单号 / 时间戳 / 哈希)"]
-  E --> F["状态更新 = 已出库，可追踪链接"]
+    A1[任务队列查看待办] --> A2{当前状态}
+    A2 -- 待入库 --> B1[扫描或录入快递单号]
+    B1 --> B2[上传入库媒体文件哈希]
+    B2 --> B3[确认时间戳并提交]
+    B3 --> B4[状态变更: WAREHOUSE_IN]
+    A2 -- 待出库 --> C1[核对出库清单]
+    C1 --> C2[上传出库媒体文件哈希]
+    C2 --> C3[确认运输信息]
+    C3 --> C4[状态变更: WAREHOUSE_OUT]
+    B4 --> D[查看质押加权得分变化]
+    C4 --> D
 ```
 
-Edge Cases: 单号校验、重复提交、多包裹分单
+**Edge Cases & Error Handling:**
+- 媒体哈希校验失败 → 标记任务为异常并引导重新上传。
+- 提交签名超时或丢失网络 → 自动保存草稿并支持重新提交。
+- 未按 SLA 完成 → 推送至 Alerts，影响仓主信用。
 
-### 质押/解押（Staking）
-**User Goal:** 进行 APT/USDT 质押或解押，提升信用
+**Notes:** 移动端提供二维码/条码扫描快捷入口，并在提交前提示“将触发链上费用”。
 
-**Entry Points:** Finance > Staking；引导弹窗
+### 理赔申请与审批
+**User Goal:** 商家或平台提交理赔并跟踪审批结果。
 
-**Success Criteria:** 质押成功，上链记录并更新信用徽章
+**Entry Points:** 订单时间线异常节点、Alert Center、客服工单跳转。
+
+**Success Criteria:** 生成理赔事件并记录审批结果，赔付金额回写至订单与索引层，相关人员收到通知。
 
 ```mermaid
 flowchart TD
-  A["Staking 页面"] --> B["选择代币与金额"]
-  B --> C["显示影响: 信用等级 / 排名 / 可提现"]
-  C --> D["签名并上链质押 / 解押"]
-  D --> E{"Tx 成功?"}
-  E -- 是 --> F["更新信用徽章 / 额度，展示 Tx"]
-  E -- 否 --> G["失败提示，重试 / 调整金额"]
+    L0[订单时间线发现异常] --> L1[点击发起理赔]
+    L1 --> L2[填写损失描述 + 上传证据哈希]
+    L2 --> L3[确认保单条款与索赔金额]
+    L3 --> L4[提交链上申请并产生事件]
+    L4 --> L5[平台审核队列接收]
+    L5 --> L6{需要补充材料?}
+    L6 -- 是 --> L7[请求补件并返回申请人]
+    L6 -- 否 --> L8[审批通过或拒绝]
+    L8 --> L9[记录赔付金额并触发通知]
+    L9 --> L10[订单状态更新与时间线标记]
 ```
 
-Edge Cases: 余额不足、Allowance 授权、锁定期/解押等待
+**Edge Cases & Error Handling:**
+- 证据不足 → 审核员要求补件，保留往返记录。
+- 重复理赔 → Move 合约拒绝并提示已有申请编号。
+- 审批延迟 → 自动升级为高优先级并通知运营主管。
 
-### 保险理赔/争议（Claim/Dispute）
-**User Goal:** 异常时提交理赔并追踪处理
-
-**Entry Points:** 订单详情“发起理赔”；异常检测自动建议
-
-**Success Criteria:** 理赔创建并上链记录；状态可追踪；结论可验证
-
-```mermaid
-flowchart TD
-  A["订单详情 - 发起理赔"] --> B["选择原因 / 上传证据 (链下 + 哈希)"]
-  B --> C["上链创建理赔事件 (原因 / 哈希 / 时间戳)"]
-  C --> D["平台审核 / 第三方裁决"]
-  D --> E{"结果?"}
-  E -- 通过 --> F["赔付发放 / 结算上链"]
-  E -- 驳回 --> G["反馈原因 / 可申诉窗口"]
-```
-
-Edge Cases: 证据不足、超时窗口、重复提交、敏感信息处理
+**Notes:** 审核面板需显示理赔 SLA 计时与上一审批节点；支持导出理赔记录附件哈希。
 
 ## Wireframes & Mockups
-
-**Primary Design Files:** 待定（Figma 项目链接将在确认 IA 后建立）
+**Primary Design Files:** Figma 项目 “Haigo Network UI”（Merchant / Warehouse / Ops 三个 page；Frame 命名与史诗编号对应）。
 
 ### Key Screen Layouts
-
-#### Dashboard（角色自适应）
-**Purpose:** 汇总待办与关键指标，快捷入口到高频操作
-
-**Key Elements:**
-- 角色卡片（Seller / Warehouse / Ops）与任务列表
-- 近期订单/入出库卡片、异常提醒
-- 信用/质押状态与快捷入口
-
-**Interaction Notes:** 首次登录向导；根据角色自动排列模块优先级
-
-**Design File Reference:** 待定
-
-#### Warehouse Detail（仓库详情）
-**Purpose:** 展示仓库能力、价格、信用与评价，支持下单
+#### 首屏仪表盘（Merchant Dashboard）
+**Purpose:** 进入后即了解订单状态、异常告警、待办签名。
 
 **Key Elements:**
-- 能力/容量/价格、质押与信用徽章
-- 评分与评价、地理信息
-- 立即下单 CTA
+- 订单进度时间线（突出当前步骤与下一步 CTA）
+- 媒体哈希验证卡片（通过 / 待验证 / 失败）
+- 费用概览与最近交易哈希
 
-**Interaction Notes:** 费用估算组件实时更新；信用徽章悬浮说明
+**Interaction Notes:** 顶部固定通知条；时间线卡片可展开查看证据；支持切换订单。
 
-**Design File Reference:** 待定
+**Design File Reference:** Figma → Merchant page → Frame `M-Dashboard-01`。
 
-#### Create Order（创建订单）
-**Purpose:** 选择参数与保险，确认摘要并支付
-
-**Key Elements:**
-- 参数表单（件数/周期/保险）
-- 费用分解（仓储/保险/网络费）
-- 订单摘要与确认
-
-**Interaction Notes:** 支付前校验；提交锁防重复；失败后可重试
-
-**Design File Reference:** 待定
-
-#### Order Details（订单详情）
-**Purpose:** 展示状态机、链上信息与操作入口
+#### 仓库详情与信用视图
+**Purpose:** 帮助商家评估仓主的质押、履约记录与评分。
 
 **Key Elements:**
-- 状态时间线（创建/入库/出库/完成/异常）
-- TxHash 与区块浏览器一键跳转
-- 入/出库、理赔等操作区
+- 信用分仪表与质押金额趋势
+- 媒体样例预览与哈希对照
+- 可筛选的历史订单列表
 
-**Interaction Notes:** “可验证”标识解释；错误/撤销窗口清晰
+**Interaction Notes:** 页面主 CTA 为“创建订单”；底部提供“查看链上记录”链接。
 
-**Design File Reference:** 待定
+**Design File Reference:** Figma → Merchant page → Frame `M-WarehouseDetail-02`。
 
-#### Inbound / Outbound（入/出库）
-**Purpose:** 高效完成存证操作，链下上传+链上哈希
-
-**Key Elements:**
-- 快递单号/承运商输入
-- 媒体上传与哈希计算进度
-- 提交上链结果与提示
-
-**Interaction Notes:** 断点续传、进度与错误恢复；多文件聚合说明
-
-**Design File Reference:** 待定
-
-#### Staking（质押）
-**Purpose:** 提升信用并记录链上质押
+#### 仓主任务队列（Warehouse Task Queue）
+**Purpose:** 让仓主快速完成入库或出库操作。
 
 **Key Elements:**
-- 金额/代币选择、影响预览（信用/排名）
-- 授权与签名流程
-- Tx 反馈与徽章更新
+- 卡片列表按紧急程度排序
+- 每卡片包含状态、截止时间、必填哈希字段
+- 快捷上传控件与移动端手势支持
 
-**Interaction Notes:** 锁定期说明与倒计时；风控提示
+**Interaction Notes:** 支持批量处理；操作后出现签名提示，与任务状态联动。
 
-**Design File Reference:** 待定
+**Design File Reference:** Figma → Warehouse page → Frame `W-Tasks-01`。
 
-#### Claims（理赔/争议）
-**Purpose:** 发起与追踪理赔，呈现裁决结果
+#### 理赔审批工作台（Ops Claims Console）
+**Purpose:** 平台审核理赔、追踪处理 SLA。
 
 **Key Elements:**
-- 原因选择与证据上传（链下+哈希）
-- 处理时间线、状态与结论
-- 赔付明细/上链记录
+- 列表过滤器（状态、风险等级、仓库）
+- 详情抽屉显示证据链与交易哈希
+- 审批按钮与评论栏
 
-**Interaction Notes:** 证据指引模版；隐私提示与脱敏
+**Interaction Notes:** 审批后自动触发通知卡片；需显示剩余 SLA 计时。
 
-**Design File Reference:** 待定
+**Design File Reference:** Figma → Ops page → Frame `O-Claims-01`。
 
-## Design System Foundations
+## Component Library / Design System
+**Design System Approach:** 基于 HaiGo 品牌样式建立定制 Design System，结合 Radix 与 shadcn 组件库以缩短实施时间，并为 Move/Aptos 交互设计专用票据卡片。
 
-- **Layout & Grid**：Desktop 使用 12 列、84px 边距、24px 栅格间距；Tablet 采用 8 列；Mobile 采用 4 列并保留 20px 安全区。所有区块遵循 8px spacing scale（8/16/24/32）。
-- **Color Tokens**：建立语义化设计令牌，例如 `color.brand.primary`（按钮/高亮）、`color.feedback.success`（上链成功）、`color.feedback.warning`（风险/质押提醒）、`color.neutral.surface`（卡片背景）。需要对接视觉团队给出具体值，并映射至 Tailwind/Chakra theme。
-- **Typography**：标题 `Display` / `Heading` 使用中英文友好的无衬线字体（如 Inter & Noto Sans SC），正文 `Body` 14–16px，数字 & Hash 使用等宽字体，确保可对齐链上数据。
-- **Iconography**：采用线性图标体系，针对“已验证”“链上/链下”“质押信用”等场景提供统一图标；所有图标需支持 20px/24px 尺寸。
-- **Motion**：微动效区分数据刷新 vs. 上链中状态：加载骨架 <400ms；交易签名与确认按钮进入 `pending` 动画，完成后 `success` 气泡提示。
-- **Theming & Dark Mode**：预留 Light/Dark 模式 variables（`--bg-surface`, `--text-primary`），交易/风险提示在暗色模式下需要专门校验对比度。
+### Core Components
+#### 订单时间线卡片
+**Purpose:** 展示状态机、签名状态与下一步动作。
 
-## Component & Interaction Specs
+**Variants:** 紧凑 / 展开、带错误状态、历史记录模式。
 
-### App Shell & Navigation
-- 顶部包含钱包状态条：显示当前连接地址、网络、Gas 预估（参考《Architecture §1》“写直链”原则）。
-- 左侧主导航根据角色自动折叠/展开关键模块；Dashboard 固定为首列；支持 hover tooltip 与 keyboard focus。
-- 全局搜索（Cmd/Ctrl + K）可直接检索订单 `record_uid`、仓库名称。
+**States:** 默认、进行中、成功、异常、等待签名。
 
-### Wallet & Signing Flow
-- 所有需要签名的操作（下单、入/出库、质押、理赔）跳转到统一的 `Signature Drawer`：展示链上函数名、关键参数、预估费（对应 PRD §5 & Architecture §1）。
-- Drawer 包含“链上信息对照”副卡片，列出即将写入的字段（如 `record_uid`, `tracking_no`, `media_hash.algo`, `media_hash.digest`）。
-- 签名前进行链连通性校验；若钱包网络非 Aptos 主/测网，提供切换指引。
+**Usage Guidelines:** 大屏横向排列；移动端改为纵向可滚动。
 
-### Order Lifecycle Surfaces
-- `Order Card` 展示状态机 `CREATED → IN → STORAGE → OUT`（PRD §6）；时间线使用 stepper，当前步骤高亮，完成步骤显示链上确认时间。
-- `Order Detail` 的链上数据区域以数据表形式显示：`record_uid`、`seller_address`、`warehouse_address`、`payment_tx_hash`、`logistics[].tracking_no`、`logistics[].media_hash.digest`。
-- “可验证”徽章展示哈希比对结果；点击可展开校验日志（成功/失败/上次验证时间）。
-- 错误状态：交易失败显示 `Tx Hash`（如果存在）与失败原因；提供“复制错误详情”动作。
+#### 哈希验证徽章
+**Purpose:** 显示媒体哈希与链上事件的对应关系。
 
-### Warehouse Browse & Detail
-- 列表卡片突出 `质押额度 (APT/USDT)`、评分、容量标签；低质押/无保险的卡片显示警示色。
-- 详情页费用估算组件：输入 `件数`/`周期` 即时计算费用拆分（仓储费、保险费、网络费），并展示链上合约公式来源。
-- 支持地图/列表切换；地图模式 tooltip 展示 `record_uid` 最近活动摘要。
+**Variants:** 已验证、待验证、验证失败、链上同步中。
 
-### Media Upload & Hash Verification
-- 上传组件支持多文件队列，逐项显示 `upload_progress`, `hash_progress`；Hash 成功后在 UI 中展示 `algo` + `digest`（Architecture §3 `ContentHash`）。
-- 上传完后需提示“链下存储成功，等待链上提交”；链上成功后以 Toast 呈现并更新状态时间线。
-- 断点续传：如果 `media_hash` 已存在但链上提交失败，提供“重新提交链上”入口。
+**States:** 包含工具提示；失败状态需提供重试或查看详情。
 
-### Staking & Credit Badge
-- 质押表单显示当前信用等级与下一等级阈值，引用 PRD §5.4 指标。
-- 交易后 `Credit Badge` 动画更新：包括额度、锁定期倒计时（PRD §8）。
-- Edge 状态：余额不足→红色提示；Allowance 未授权→引导发起授权交易。
+**Usage Guidelines:** 放置在证据列表与仓库详情中，保持颜色对比度 ≥ 4.5:1。
 
-### Claims & Disputes
-- 理赔表单包含证据上传 checklist（照片、聊天记录、出入库对比）；上传后显示链下哈希与 `claim_id`。
-- 状态时间线：`CLAIM_OPENED → REVIEW → RESOLVED/REJECTED`，每阶段显示责任角色与预计处理 SLA。
-- 提供“与仓主沟通”侧边栏（链下 IM）并标注“链下沟通，重要信息需上链”提醒。
+#### 质押信用卡片
+**Purpose:** 呈现仓库质押金额、信用权重和趋势。
 
-## State Management & Data Binding Matrix
+**Variants:** 小卡（列表）、大卡（详情）、无数据。
 
-| Surface | Data Source | Key Fields | Sync Strategy |
-|---------|-------------|------------|---------------|
-| Dashboard Overview | BFF + On-chain | 待办数量、最近订单 `record_uid`、质押余额 | 初始加载走 BFF；关键指标（余额/质押）通过定时直读链（60s poll） |
-| Order List | BFF (分页) | `record_uid`, `status`, `warehouse`, `created_at`, `fees` | 列表默认 BFF；切换“最新链上状态”时触发链上刷新并回写缓存 |
-| Order Detail | On-chain primary + BFF | `payment_tx_hash`, `logistics[]`, `content_hash`, `meta_hash` | 初次加载调用链上 view；BFF 补充媒体元数据、地理信息 |
-| Media Viewer | Chain hash + Object Store | `content_hash.algo`, `content_hash.digest`, `object_key`, `mime` | 拉取对象→本地计算哈希→对比链上→结果存入本地 cache 2h |
-| Staking Module | On-chain | `stake.amount`, `stake.asset`, `lock_until` | 链上实时查询；交易完成后手动刷新 |
-| Claims Center | On-chain events + BFF | `claim_id`, `status`, `evidence_hash`, `decision` | BFF 消费事件→实时态更新；失败时 fallback 链上 event scan |
-| Wallet Banner | Wallet provider | `address`, `network`, `balance` | 监听钱包事件；断线时显示 reconnect 提示 |
+**States:** 正常、风险（质押下降）、冻结。
 
-## Loading, Empty & Error States
+**Usage Guidelines:** 支持 sparkline，并与风险警示组件联动。
 
-- **Loading**：列表使用 skeleton；详细页使用 shimmer + “上链数据校验中”提示；交易提交后按钮改为 `Signing…` 并禁用。
-- **Empty States**：无订单时提供“去浏览仓库”CTA；无质押记录时展示信用机制说明；无理赔时显示安全提示。
-- **Error**：网络错误→蓝色重试卡；链上失败→展示 `VM Status` + 复制；哈希校验失败→红色警示并提供“重新上传/联系支持”。
+#### 理赔审批面板
+**Purpose:** 审核理赔申请并查看证据。
 
-## Responsive Behavior
+**Variants:** 审批中、待补件、已结案。
 
-- **Desktop ≥1280px**：双栏布局（信息 + 操作）；时间线与媒体预览并列。
-- **Tablet 768–1279px**：导航折叠为抽屉；表格切换为卡片式展示；上传组件改为垂直堆叠。
-- **Mobile ≤767px**：核心流程保持最多 3 步；CTA 固定底部安全区；链上哈希使用折叠面板展示。
-- **Orientation**：入/出库拍照流程在横屏模式下保留相机全屏视图；指引 overlay 避免遮挡拍摄区域。
+**States:** 编辑模式、只读（历史）、锁定（其他审核员操作中）。
 
-## Accessibility, Localization & Compliance
+**Usage Guidelines:** 采用侧边抽屉，保留上下文列表。
 
-- 对比度≥4.5:1，按钮≥44px 触控区域，Tab 键可遍历所有交互元素。
-- 支持中英双语切换；所有链上字段保留英文原文，提供中文注释；日期/金额根据 locale 格式化。
-- 上传涉及隐私文件时显示脱敏提示，引用合规策略（PRD §3.3）。
-- 关键交易提供音频/振动反馈，方便仓库移动端操作；提供文字替代说明。
+## Branding & Style Guide
+### Visual Identity
+**Brand Guidelines:** https://figma.com/file/.../HaiGo-Brand-System（DesignOps 将同步最新 v1.2，含中文与英文字体规范）。
 
-## Observability & Product Analytics
+### Color Palette
+| Color Type | Hex Code | Usage |
+| --- | --- | --- |
+| Primary | `#0F2F5B` | 导航、主要按钮、时间线高亮，传递可信与稳健感 |
+| Secondary | `#1FB6A6` | 次要操作、筛选标签，强调链上透明与成功反馈 |
+| Accent | `#F4A259` | 提醒、订单状态徽章、费用拆解强调 |
+| Success | `#2ECC71` | Positive feedback, confirmations |
+| Warning | `#F39C12` | Cautions, important notices |
+| Error | `#E74C3C` | Errors, destructive actions |
+| Neutral | `#121417 / #5C6470 / #E4E8F0` | Text, borders, backgrounds |
 
-- 关键事件埋点：`wallet_connected`, `order_created`, `check_in_submitted`, `check_out_submitted`, `stake_confirmed`, `claim_submitted`。
-- 上链交互埋点需记录 `tx_hash`, `latency`, `wallet_provider`，与 Architecture §1 的直链策略对齐。
-- 错误日志：链上失败分类（网络、VM、用户拒签），链下上传失败分类（网络、hash_mismatch、object_store_error）。
-- 性能指标：首屏 <2.5s；哈希计算 UI 需在 1s 内反馈进度。
+### Typography
+- **Primary:** Noto Sans SC（中文与多语言主字体）
+- **Secondary:** Inter（英文字体、数据表格）
+- **Monospace:** JetBrains Mono（哈希与交易号展示）
+
+| Element | Size | Weight | Line Height |
+| --- | --- | --- | --- |
+| H1 | 36px | 700 | 44px |
+| H2 | 28px | 600 | 36px |
+| H3 | 22px | 600 | 30px |
+| Body | 16px | 400 | 24px |
+| Small | 13px | 500 | 18px |
+
+### Iconography
+**Icon Library:** Remix Icon + 定制链上状态图标（SVG 资源存于 `/design/icons`）。
+
+**Usage Guidelines:** 线性风格统一，状态类图标需与颜色状态对应；哈希验证、钱包连接采用定制 pictogram；保持 24px 基准，触屏场景至少 32px。
+
+### Spacing & Layout
+**Grid System:** 12 列响应式网格（Desktop 1280px 容器，gutter 24px；Tablet 8 列；Mobile 4 列）。
+
+**Spacing Scale:** 4px 基准（4/8/12/16/24/32/48/64）；关键卡片使用倍数增量确保可预测节奏。
+
+## Accessibility Requirements
+**Standard:** WCAG 2.1 AA（覆盖桌面与移动端；与国际合规要求一致）。
+
+### Key Requirements
+**Visual:**
+- Color contrast ratios: 主要文本或背景 ≥ 4.5:1；按钮与状态徽章 ≥ 3:1。
+- Focus indicators: 使用高对比描边与阴影，保障键盘可见性。
+- Text sizing: 支持浏览器缩放 200%，组件不破版；关键数据 ≥ 16px。
+
+**Interaction:**
+- Keyboard navigation: 全站 Tab 顺序与焦点管理清晰；模态可 Esc 关闭且焦点陷阱。
+- Screen reader support: 所有状态标签、哈希验证结果提供 ARIA 标签与 live region。
+- Touch targets: 移动端交互区域 ≥ 48x48px，降低仓主误操作风险。
+
+**Content:**
+- Alternative text: 媒体证据缩略图提供描述性 alt；链上数据图表配文本摘要。
+- Heading structure: H1-H3 层级遵循语义，搭配面包屑定位。
+- Form labels: 所有输入含可见标签与描述，错误提示与字段联动。
+
+### Testing Strategy
+结合 axe 自动扫描、NVDA 或 VoiceOver 手动测试、键盘无鼠标巡检；每季度运行仓主移动场景专项测试。
+
+## Responsiveness Strategy
+### Breakpoints
+| Breakpoint | Min Width | Max Width | Target Devices |
+| --- | --- | --- | --- |
+| Mobile | 0px | 767px | 仓主手机、商家随身查看 |
+| Tablet | 768px | 1023px | 仓主平板、运营巡检 |
+| Desktop | 1024px | 1439px | 商家或运营常规工作台 |
+| Wide | 1440px | - | 多屏运营中心、数据墙 |
+
+### Adaptation Patterns
+**Layout Changes:** Mobile 采用单列卡片堆叠；Tablet 引入双列；Desktop 或 Wide 使用 12 列网格和可扩展侧栏。
+
+**Navigation Changes:** Mobile 顶部保留简化导航与底部快捷任务条；Desktop 使用侧边主导航与顶部状态条。
+
+**Content Priority:** 移动端优先展示状态与待办，折叠次级数据；Wide 端增加图表与地图。
+
+**Interaction Changes:** Mobile 提供滑动操作、指纹或 FaceID 快速确认；Desktop 保留复杂表格交互与拖拽过滤器。
+
+## Animation & Micro-interactions
+### Motion Principles
+优先“信息反馈型”动效，时长 ≤ 200ms，使用缓出（ease-out）或自定义 `cubic-bezier(0.2, 0.8, 0.2, 1)`；状态变更需伴随视觉与文本反馈；动画必须可被用户减少（遵循 `prefers-reduced-motion`）。
+
+### Key Animations
+- **订单状态推进：** 时间线上节点由灰变为主色，伴随轻微缩放与线条填充（Duration: 160ms, Easing: ease-out）。
+- **哈希验证结果：** 徽章自底部淡入，失败状态附振动提醒（Duration: 180ms, Easing: ease-in-out）。
+- **理赔审批提交：** 按钮成功后展示简短进度条与成功勾（Duration: 200ms, Easing: ease-out）。
+
+## Performance Considerations
+### Performance Goals
+- **Page Load:** 首屏 LCP ≤ 2.5s（桌面与移动）；关键数据接口并行加载。
+- **Interaction Response:** 交互反馈 ≤ 150ms，签名或交易提交展示进度状态。
+- **Animation FPS:** 目标 60fps，移动设备降至 30fps 时自动简化动效。
+
+### Design Strategies
+- 按需加载模块化面板（订单详情、地图等），避免一次性渲染全部内容。
+- 使用骨架屏与渐进数据加载保持感知性能。
+- 图表与地图在空状态下延迟渲染，优先呈现关键指标。
+- 哈希验证与签名操作提供乐观 UI 与重试入口，降低等待焦虑。
+
+## Next Steps
+### Immediate Actions
+1. 与 PM 与 Architect 评审 IA 与核心流程，锁定需求范围。
+2. 启动 Figma 线框产出并连接组件库。
+3. 规划可用性测试脚本，针对商家与仓主双角色。
+4. 与前端团队对接 design tokens 与响应式实现方案。
+
+### Design Handoff Checklist
+- [ ] All user flows documented
+- [ ] Component inventory complete
+- [ ] Accessibility requirements defined
+- [ ] Responsive strategy clear
+- [ ] Brand guidelines incorporated
+- [ ] Performance goals established
+
+## Checklist Results
+暂无专用 UI/UX checklist；待 Figma 初稿完成后运行团队内部评审。

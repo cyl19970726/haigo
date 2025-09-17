@@ -1,0 +1,49 @@
+schema: 1
+story: "1.2"
+story_title: "Core Account Move Module"
+gate: PASS
+status_reason: "All acceptance criteria met with high-quality Move smart contract implementation. Comprehensive validation, security controls, and test coverage meet production standards."
+reviewer: "Quinn (Test Architect)"
+updated: "2025-09-17T15:15:00Z"
+
+waiver: { active: false }
+
+top_issues: []
+
+risk_summary:
+  totals: { critical: 0, high: 0, medium: 0, low: 1 }
+  recommendations:
+    must_fix: []
+    monitor:
+      - "Documentation comment warnings in Move compiler (cosmetic only)"
+
+quality_score: 95
+
+evidence:
+  tests_reviewed: 5
+  risks_identified: 1
+  trace:
+    ac_covered: [1, 2, 3, 4]
+    ac_gaps: []
+
+nfr_validation:
+  security:
+    status: PASS
+    notes: "Excellent access controls, input validation, and hash format enforcement. No critical vulnerabilities identified."
+  performance:
+    status: PASS
+    notes: "Efficient Move operations with proper gas limits. Table storage scales well."
+  reliability:
+    status: PASS
+    notes: "Robust error handling, duplicate prevention, and atomic state updates"
+  maintainability:
+    status: PASS
+    notes: "Clean code structure, comprehensive tests, good documentation alignment"
+
+recommendations:
+  immediate: []
+  future:
+    - action: "Fix documentation comment warnings for view functions"
+      refs: ["move/sources/registry.move:184", "move/sources/registry.move:191"]
+    - action: "Consider adding role-based query functions for enhanced indexing"
+      refs: ["move/sources/registry.move"]

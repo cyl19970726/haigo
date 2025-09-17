@@ -1,1060 +1,406 @@
-# HaiGo 海行 – Architecture v1.0.1
-
-> 修订要点：
->
-> 1. **写直链**：前端通过钱包直接与 Aptos 交互进行所有需要签名的写操作；
-> 2. **BFF 只读**：BFF/Indexer 仅做读取加速、聚合与链下能力（预签名上传、搜索、排行、风控 Hook），不代签、不代付；
-> 3. **媒体链下 + 哈希上链**：大体量媒体（图片/视频）链下存储，链上仅保存 `ContentHash` 与必要元数据。
-
----
-
-## 0. Goals & Scope
-
-* **目标**：以 Aptos 为底层，将跨境仓储履约的关键数据可信上链，构建“可追溯、可审计、低成本、可扩展”的海外家庭仓 RWA 平台。
-* **范围**：
-
-  * **On-chain**：订单状态机、事件模型、账户/权限约束；质押与保险接口位。
-  * **Off-chain**：BFF（只读）、事件索引、媒体存储与校验、排名与可视化。
-  * **Frontend**：商家/仓主/平台三端 dApp；钱包签名、直链读写、媒体上载与验证。
-  * **横切**：安全、隐私与合规、可观测性、部署与灰度、容量与成本。
-
----
-
-## 1. Architectural Principles
-
-1. **写直链**：任何需要签名的交易（Create/Check-in/SetStorage/Check-out/Stake/Claim/Rate）均由前端 dApp 通过钱包签名并直接提交到链。
-2. **读写分离**：关键读（决定交易前的状态）优先直读链；复杂列表/聚合读可经 BFF 缓存与索引。
-3. **最小上链**：只上链关键业务字段与内容哈希；媒体与隐私信息链下。
-4. **事件驱动**：以链上 Event 为事实来源（SoT）；BFF 异步消费事件构建 Read Model。
-5. **最小权限**：地址即身份；状态转换仅限权利人（卖家/仓主/授权操作员）。
-6. **可验证性**：展示媒体前进行本地哈希校验（链上哈希对比）。
-7. **可演进**：合约保留 `version`/FeatureGate；BFF 与前端使用接口与协议解耦。
-
----
-
-## 2. High-level Topology
-
-```
-[ User Wallet (Petra…)]
-        │ sign
-        ▼
-Frontend dApp (Next.js/TS)
-  ├─ Aptos SDK → Fullnode RPC  ←──►  Move Contracts (haigo::warehouse_rwa)
-  ├─ Read (critical) → Indexer RPC / Fullnode
-  ├─ Upload → S3/MinIO 等对象存储（Presigned URL）
-  └─ Optional Read → BFF (aggregate/search/ranking)
-
-BFF (Read-only / Off-chain)
-  ├─ Event Consumer → Read Models (Postgres/Redis)
-  ├─ Search/Ranking/Maps API
-  ├─ Media Presign / Commit metadata
-  └─ Risk/KYC/AML Hooks (链下资源访问门槛)
-```
-
----
-
-## 3. Domain & Data (DDD Sketch)
-
-**限界上下文**：
-
-* **Order**：订单主数据与状态机（CREATED → IN → STORAGE → OUT）。
-* **Stake**：仓主质押与信用权重（扩展模块）。
-* **Insurance**：保险保费、理赔申请与裁决（扩展模块）。
-* **Reputation**：评分与评价（review\_hash 上链，正文链下）。
-* **Media**：对象存储与哈希校验。
-
-**链上主结构（摘要）**：
-
-* `WarehouseRecord { record_uid, seller, warehouse, status, value_declared, fees, payment_tx_hash, ts, logistics[], meta_hash, policy }`
-* `LogisticsEntry { action(IN/OUT), tracking_no, media(ContentHash), ts }`
-* `ContentHash { algo, digest }` （如 `keccak256`, `blake3`）
-
-**链下 Read Models**（Postgres/Redis）：
-
-* `orders`、`warehouses`、`scores`、`media_objects`（含 object\_key/hash/algo/size/mime/uploader/ts）。
-
----
-
-## 4. Smart Contract Design (Aptos/Move)
-
-**Module**：`haigo::warehouse_rwa`
-
-**State Constants**：`0=CREATED, 1=IN, 2=STORAGE, 3=OUT`
-
-**Events**：`OrderCreatedEvent`、`CheckedInEvent`、`SetInStorageEvent`、`CheckedOutEvent`
-
-**Entry Functions**（与 PRD 对齐）：
-
-* `create_order(seller, warehouse, value_declared, storage_fee, insurance_fee, payment_tx_hash, meta_hash?) -> record_uid`
-* `check_in(record_uid, in_tracking_no, in_media_hash)`
-* `set_in_storage(record_uid)`
-* `check_out(record_uid, out_tracking_no, out_media_hash)`
-* 扩展位：`stake/unstake`、`open_claim/resolve_claim`、`rate_warehouse`
-
-**Access Control**：
-
-* `create_order` 仅 `seller` 签名地址可调；
-* `check_in / set_in_storage / check_out` 仅 `warehouse` 地址或其授权操作员；
-* 严格状态流转顺序与幂等；暂停开关（紧急止血）。
-
-**存储策略**：只保存关键字段与 `ContentHash`；媒体不上链。
-
-### 4.1 MVP Module Skeleton（可编译骨架）
-
-```move
-module haigo::warehouse_rwa {
-    use std::signer;
-    use std::vector;
-    use aptos_std::account;
-    use aptos_std::event::{self, EventHandle};
-    use aptos_std::option::{self, Option};
-    use aptos_std::table::{self, Table};
-
-    const ADMIN: address = @haigo;
-    const STATUS_CREATED: u8 = 0;
-    const STATUS_IN: u8 = 1;
-    const STATUS_STORAGE: u8 = 2;
-    const STATUS_OUT: u8 = 3;
-
-    const E_ALREADY_INITIALIZED: u64 = 1;
-    const E_NOT_INITIALIZED: u64 = 2;
-    const E_UNAUTHORIZED: u64 = 3;
-    const E_INVALID_TRANSITION: u64 = 4;
-    const E_RECORD_NOT_FOUND: u64 = 5;
-    const E_INVALID_HASH: u64 = 6;
-    const E_INVALID_FEE: u64 = 7;
-
-    struct ContentHash has copy, drop, store {
-        algo: u8,
-        digest: vector<u8>,
-    }
-
-    struct LogisticsSnapshot has copy, drop, store {
-        tracking_no: vector<u8>,
-        media_hash: ContentHash,
-        client_ts: u64,
-    }
-
-    struct WarehouseRecord has copy, drop, store {
-        uid: u64,
-        seller: address,
-        warehouse: address,
-        status: u8,
-        value_declared: u64,
-        storage_fee: u64,
-        insurance_fee: u64,
-        payment_tx_hash: vector<u8>,
-        meta_hash: Option<ContentHash>,
-        created_at: u64,
-        in_storage_at: Option<u64>,
-        check_in: Option<LogisticsSnapshot>,
-        check_out: Option<LogisticsSnapshot>,
-    }
-
-    struct OrderStore has key {
-        next_uid: u64,
-        records: Table<u64, WarehouseRecord>,
-    }
-
-    struct OrderEvents has key {
-        order_created_events: EventHandle<OrderCreatedEvent>,
-        checked_in_events: EventHandle<CheckedInEvent>,
-        in_storage_events: EventHandle<SetInStorageEvent>,
-        checked_out_events: EventHandle<CheckedOutEvent>,
-    }
-
-    struct OrderCreatedEvent has drop, store {
-        record_uid: u64,
-        seller: address,
-        warehouse: address,
-        storage_fee: u64,
-        insurance_fee: u64,
-    }
-
-    struct CheckedInEvent has drop, store {
-        record_uid: u64,
-        warehouse: address,
-        tracking_no: vector<u8>,
-    }
-
-    struct SetInStorageEvent has drop, store {
-        record_uid: u64,
-        warehouse: address,
-    }
-
-    struct CheckedOutEvent has drop, store {
-        record_uid: u64,
-        warehouse: address,
-        tracking_no: vector<u8>,
-    }
-
-    public entry fun init_module(admin: &signer) {
-        let admin_addr = signer::address_of(admin);
-        assert!(admin_addr == ADMIN, E_UNAUTHORIZED);
-        assert!(!exists<OrderStore>(ADMIN), E_ALREADY_INITIALIZED);
-        move_to(admin, OrderStore { next_uid: 0, records: table::new() });
-        move_to(admin, OrderEvents {
-            order_created_events: event::new_event_handle<OrderCreatedEvent>(admin),
-            checked_in_events: event::new_event_handle<CheckedInEvent>(admin),
-            in_storage_events: event::new_event_handle<SetInStorageEvent>(admin),
-            checked_out_events: event::new_event_handle<CheckedOutEvent>(admin),
-        });
-    }
-
-    public entry fun create_order(
-        seller: &signer,
-        warehouse: address,
-        value_declared: u64,
-        storage_fee: u64,
-        insurance_fee: u64,
-        payment_tx_hash: vector<u8>,
-        has_meta_hash: bool,
-        meta_hash_algo: u8,
-        meta_hash_digest: vector<u8>,
-        client_created_at: u64,
-    ) acquires OrderStore, OrderEvents {
-        let seller_addr = signer::address_of(seller);
-
-        assert!(storage_fee > 0, E_INVALID_FEE);
-        assert!(insurance_fee > 0, E_INVALID_FEE);
-
-        let meta_hash = if (has_meta_hash) {
-            option::some(new_content_hash(meta_hash_algo, meta_hash_digest))
-        } else {
-            let _ = meta_hash_digest;
-            option::none<ContentHash>()
-        };
-
-        let store = borrow_store_mut();
-        let record_uid = next_uid(store);
-        let record = WarehouseRecord {
-            uid: record_uid,
-            seller: seller_addr,
-            warehouse,
-            status: STATUS_CREATED,
-            value_declared,
-            storage_fee,
-            insurance_fee,
-            payment_tx_hash,
-            meta_hash,
-            created_at: client_created_at,
-            in_storage_at: option::none<u64>(),
-            check_in: option::none<LogisticsSnapshot>(),
-            check_out: option::none<LogisticsSnapshot>(),
-        };
-        table::add(&mut store.records, record_uid, record);
-
-        let events = borrow_events_mut();
-        event::emit_event(
-            &mut events.order_created_events,
-            OrderCreatedEvent {
-                record_uid,
-                seller: seller_addr,
-                warehouse,
-                storage_fee,
-                insurance_fee,
-            },
-        );
-    }
-
-    public entry fun check_in(
-        warehouse_signer: &signer,
-        record_uid: u64,
-        tracking_no: vector<u8>,
-        media_hash_algo: u8,
-        media_hash_digest: vector<u8>,
-        client_ts: u64,
-    ) acquires OrderStore, OrderEvents {
-        let warehouse_addr = signer::address_of(warehouse_signer);
-        let store = borrow_store_mut();
-        let record = borrow_record_mut(store, record_uid);
-        assert!(record.status == STATUS_CREATED, E_INVALID_TRANSITION);
-        assert!(record.warehouse == warehouse_addr, E_UNAUTHORIZED);
-
-        let tracking_for_event = vector::clone(&tracking_no);
-        let media_hash = new_content_hash(media_hash_algo, media_hash_digest);
-
-        record.status = STATUS_IN;
-        record.check_in = option::some(LogisticsSnapshot {
-            tracking_no,
-            media_hash,
-            client_ts,
-        });
-
-        let events = borrow_events_mut();
-        event::emit_event(
-            &mut events.checked_in_events,
-            CheckedInEvent {
-                record_uid,
-                warehouse: warehouse_addr,
-                tracking_no: tracking_for_event,
-            },
-        );
-    }
-
-    public entry fun set_in_storage(
-        warehouse_signer: &signer,
-        record_uid: u64,
-        client_ts: u64,
-    ) acquires OrderStore, OrderEvents {
-        let warehouse_addr = signer::address_of(warehouse_signer);
-
-        let store = borrow_store_mut();
-        let record = borrow_record_mut(store, record_uid);
-        assert!(record.status == STATUS_IN, E_INVALID_TRANSITION);
-        assert!(record.warehouse == warehouse_addr, E_UNAUTHORIZED);
-
-        record.status = STATUS_STORAGE;
-        record.in_storage_at = option::some(client_ts);
-
-        let events = borrow_events_mut();
-        event::emit_event(
-            &mut events.in_storage_events,
-            SetInStorageEvent { record_uid, warehouse: warehouse_addr },
-        );
-    }
-
-    public entry fun check_out(
-        warehouse_signer: &signer,
-        record_uid: u64,
-        tracking_no: vector<u8>,
-        media_hash_algo: u8,
-        media_hash_digest: vector<u8>,
-        client_ts: u64,
-    ) acquires OrderStore, OrderEvents {
-        let warehouse_addr = signer::address_of(warehouse_signer);
-
-        let store = borrow_store_mut();
-        let record = borrow_record_mut(store, record_uid);
-        assert!(record.status == STATUS_STORAGE, E_INVALID_TRANSITION);
-        assert!(record.warehouse == warehouse_addr, E_UNAUTHORIZED);
-
-        let tracking_for_event = vector::clone(&tracking_no);
-        let media_hash = new_content_hash(media_hash_algo, media_hash_digest);
-
-        record.status = STATUS_OUT;
-        record.check_out = option::some(LogisticsSnapshot {
-            tracking_no,
-            media_hash,
-            client_ts,
-        });
-
-        let events = borrow_events_mut();
-        event::emit_event(
-            &mut events.checked_out_events,
-            CheckedOutEvent {
-                record_uid,
-                warehouse: warehouse_addr,
-                tracking_no: tracking_for_event,
-            },
-        );
-    }
-
-    fun new_content_hash(algo: u8, digest: vector<u8>): ContentHash {
-        assert!(vector::length(&digest) > 0, E_INVALID_HASH);
-        ContentHash { algo, digest }
-    }
-
-    fun borrow_store_mut(): &mut OrderStore acquires OrderStore {
-        assert!(exists<OrderStore>(ADMIN), E_NOT_INITIALIZED);
-        borrow_global_mut<OrderStore>(ADMIN)
-    }
-
-    fun borrow_events_mut(): &mut OrderEvents acquires OrderEvents {
-        assert!(exists<OrderEvents>(ADMIN), E_NOT_INITIALIZED);
-        borrow_global_mut<OrderEvents>(ADMIN)
-    }
-
-    fun borrow_record_mut(store: &mut OrderStore, record_uid: u64): &mut WarehouseRecord {
-        if (!table::contains(&store.records, record_uid)) {
-            abort E_RECORD_NOT_FOUND;
-        };
-        table::borrow_mut(&mut store.records, record_uid)
-    }
-
-    fun next_uid(store: &mut OrderStore): u64 {
-        let uid = store.next_uid;
-        store.next_uid = uid + 1;
-        uid
-    }
-
-    #[test]
-    fun test_happy_path() {
-        let admin_signer = account::create_account_for_test(ADMIN);
-        init_module(&admin_signer);
-
-        let seller = account::create_account_for_test(@0x100);
-        let warehouse = account::create_account_for_test(@0x200);
-
-        create_order(
-            &seller,
-            signer::address_of(&warehouse),
-            1_000,
-            100,
-            10,
-            b"tx_hash",
-            false,
-            0,
-            b"",
-            0,
-        );
-
-        check_in(&warehouse, 0, b"TRACK-IN", 1, b"digest-in", 1);
-
-        set_in_storage(&warehouse, 0, 2);
-
-        check_out(&warehouse, 0, b"TRACK-OUT", 1, b"digest-out", 3);
-
-        // TODO: add invariant assertions once storage layout finalized.
-    }
-}
+# HaiGo 架构说明（PoC v0）
+
+本文档基于 `docs/prd.md` 的需求，结合近期讨论结果整理 HaiGo 海行在 PoC 阶段的整体架构。目标是指导 Move 合约、链下服务、前端和数据管道的协同实现，同时为后续向生产级演化预留路径。
+
+## Introduction
+
+### Starter Template or Existing Project
+- 项目类型：Greenfield。当前无既有代码库可复用。
+- 不采用通用 Monorepo 模板（如 NX/Turborepo）。通过自定义 npm workspaces 搭建 `move/`、`apps/`、`packages/` 目录，贴合 Aptos Move + TypeScript 组合需求。
+- 若未来需要加速接入，可评估 Aptos 官方示例仓库或第三方模板，但目前保持轻量定制，便于 PoC 快速演进。
+
+### Change Log
+| Date       | Version | Description                       | Author |
+|------------|---------|-----------------------------------|--------|
+| 2025-09-18 | v0.2    | 补充模板前置章节、技术总结、平台决策 | Sarah  |
+| 2025-09-17 | v0.1    | 初版 PoC 架构草案                   | Sarah  |
+
+## High Level Architecture
+
+### Technical Summary
+- 架构风格：前后端一体的 Monorepo，链上 Move 模块负责可信状态，链下 BFF 聚合官方 Aptos Indexer 与自有元数据，前端直接面向钱包交互。
+- 前端：Next.js + `@aptos-labs/wallet-adapter-react`，结合 i18next/Day.js 支撑多语言多时区。
+- 后端：NestJS BFF 负责只读聚合、媒体上传、Hash 校验；本地 Postgres/Hasura 存放媒体、运营衍生数据。
+- 数据与集成：核心链上数据全部从 Aptos 官方 Indexer GraphQL 获取，链下媒体暂存在服务器磁盘并定期备份。
+- 基础设施：PoC 部署在测试网与云主机（阿里云 ECS 或等效服务），CI 以 GitHub Actions 为主，输出 Move 编译/测试 + 前后端构建。
+- PRD 目标达成：满足 FR1–FR10 的链上身份、订单状态机、质押/理赔事件；NFR1–NFR8 通过钱包签名、媒体哈希、本地备份、监控告警策略逐步落实。
+
+### Platform and Infrastructure Choice
+| 选项 | 优点 | 局限 |
+|------|------|------|
+| 阿里云（ECS + RDS + OSS） | 中国团队运维熟悉、区域覆盖、便于未来迁移 OSS | PoC 阶段成本略高，需要额外配置基础设施 | 
+| Vercel + Supabase | 快速部署 Next.js、内建 Postgres 存储 | 对 Aptos Move/BFF 自定义服务支持不足，媒体上传有限制 |
+| AWS（EC2 + RDS + S3） | 全球可用、配套完善 | 成本相对高、合规审计需额外工作 |
+
+**推荐方案**：阿里云测试网部署。利用 ECS 运行 BFF/Hasura，RDS/Postgres 托管链下数据；后续迁移 OSS 替代本地磁盘。正式化阶段可再评估多云或托管方案。
+
+### Repository Structure
+- 采用 npm workspaces + custom tooling：
+  - `move/`：Aptos Move 合约与脚本。
+  - `apps/web`：Next.js 前端应用。
+  - `apps/bff`：NestJS BFF 服务。
+  - `packages/shared`：共享 TypeScript 类型、配置、GraphQL 查询封装。
+  - `docs/`：需求、架构、Runbook 文档。
+- 根目录维护统一的 lint/test 脚本；CI 按 workspace 区分任务。
+
+```text
+haigo/
+├─ move/
+│  ├─ sources/                 # Move 模块源文件
+│  ├─ scripts/                 # 部署与运维脚本
+│  └─ Move.toml
+├─ apps/
+│  ├─ web/                     # 前端 Next.js 应用
+│  │  ├─ app/                  # App Router 页面与布局
+│  │  ├─ components/           # UI 组件（含 shadcn 封装）
+│  │  ├─ features/             # 领域模块（订单、理赔等）
+│  │  └─ lib/                  # 钱包、i18n、API 客户端
+│  └─ bff/                     # NestJS BFF 服务
+│     ├─ src/
+│     │  ├─ modules/           # 领域模块（orders、claims 等）
+│     │  ├─ infrastructure/    # 数据访问层（Hasura/Indexer/存储）
+│     │  ├─ common/            # DTO、拦截器、中间件
+│     │  └─ main.ts
+│     └─ test/
+├─ packages/
+│  └─ shared/
+│     ├─ src/
+│     │  ├─ dto/               # 共享 DTO/类型定义
+│     │  ├─ gql/               # GraphQL 查询与 Hook 封装
+│     │  └─ config/            # 合约地址、环境配置
+│     └─ index.ts
+├─ docs/                       # PRD、架构、故事等
+└─ tooling/                    # Lint、CI、Terraform/Ansible 模板（PoC 可选）
 ```
 
-### 4.2 事件与错误码对照
 
-| 项目 | 描述 | 触发点 |
-| --- | --- | --- |
-| `OrderCreatedEvent` | 订单创建成功 | `create_order` |
-| `CheckedInEvent` | 入库完成 | `check_in` |
-| `SetInStorageEvent` | 仓储状态确认 | `set_in_storage` |
-| `CheckedOutEvent` | 出库完成 | `check_out` |
+## 1. 架构目标与范围
+- **核心目标**：验证订单生命周期的链上可信记录、档案/媒体哈希对照、质押与理赔流程的可行性，并向商家/仓主提供端到端体验。
+- **范围约束**：
+  - PoC 阶段采用本地磁盘存储媒体文件，保留抽象接口以便迁移至对象存储（阿里云 OSS）。
+- 复用 Aptos 官方 Indexer GraphQL API 获取链上事件，必要时在 BFF 层做缓存与聚合；Hasura/Postgres 主要服务于我们自有媒体与运营数据。
+  - 部署环境以测试网为主，CI 只覆盖编译/单测/基础集成。
 
-| 错误码 | 数值 | 说明 |
-| --- | --- | --- |
-| `E_ALREADY_INITIALIZED` | 1 | 模块重复初始化 |
-| `E_NOT_INITIALIZED` | 2 | 未先调用 `init_module` |
-| `E_UNAUTHORIZED` | 3 | 调用者不具备权限 |
-| `E_INVALID_TRANSITION` | 4 | 状态机越序或重复 |
-| `E_RECORD_NOT_FOUND` | 5 | 订单不存在 |
-| `E_INVALID_HASH` | 6 | 内容哈希为空或不合法 |
-| `E_INVALID_FEE` | 7 | 费用为 0，违反业务校验 |
+## 2. 系统分层概览
+```
+┌──────────────────────────────────────────────────────┐
+│                       前端层 apps/web               │
+│  Next.js + @aptos-labs/wallet-adapter-react          │
+│  角色仪表盘、订单时间线、媒体上传、质押/理赔面板        │
+└──────────────────────────────────────────────────────┘
+            │ 直接调用 Aptos 钱包签名 + BFF API
+┌──────────────────────────────────────────────────────┐
+│               BFF / 服务层 apps/bff (NestJS)         │
+│  - 钱包签名辅助、费用计算                           │
+│  - 媒体上传 + 本地磁盘存储 + blake3 哈希              │
+│  - 对接 Hasura/Indexer 聚合链上只读数据                │
+└──────────────────────────────────────────────────────┘
+            │                                  │
+            ▼                                  ▼
+┌────────────────────────┐    ┌────────────────────────┐
+│  Aptos Move 模块        │    │ Hasura + Postgres       │
+│  registry / orders /   │    │  自有媒体/运营数据与缓存     │
+│  staking / insurance   │    │  （可选）                 │
+└────────────────────────┘    └────────────────────────┘
+            │                                  ▲
+            ▼                                  │
+      Aptos 节点 & RPC                 Aptos Indexer GraphQL API
+```
 
-### 4.3 单测与验证大纲
+### 2.1 全栈交互示意图
+```mermaid
+flowchart LR
+  User[(商家/仓主/运营)] --> WebApp
+  subgraph Frontend
+    WebApp[apps/web\nNext.js + Wallet Adapter]
+  end
 
-1. **Happy Path**：下单 → 入库 → 仓储 → 出库；断言状态、哈希、事件计数。
-2. **权限**：卖家无法调用入库/出库；仓主地址不匹配时报错 `E_UNAUTHORIZED`。
-3. **状态机**：重复调用或跳过步骤返回 `E_INVALID_TRANSITION`。
-4. **输入校验**：哈希为空、费用为零触发对应错误码。
-5. **回放测试**：使用事件回放重建读模型（链下测试）。
+  WebApp <-->|签名/交易| Wallet
+  Wallet[[Aptos 钱包\nPetra/Martian]] --> AptosRPC[(Aptos Fullnode RPC)]
 
----
+  WebApp -->|REST/GraphQL| BFF
+  subgraph Services
+    BFF[apps/bff\nNestJS]
+    MediaStore[(本地媒体目录)]
+    Hasura[(Hasura GraphQL)]
+    Postgres[(Postgres\n运营/媒体数据)]
+  end
 
-## 5. Frontend Architecture
+  BFF -->|媒体上传/哈希| MediaStore
+  BFF -->|查询| Hasura
+  Hasura -->|读写| Postgres
 
-* **框架**：Next.js + TypeScript；组件库统一（表单、卡片、徽章、空/错态）。
-* **钱包**：Aptos 钱包适配（Petra 等）；`useWallet()` 封装签名与网络切换。
-* **直链写入流程**：
+  subgraph OnChain
+    MoveModules[Move Modules\nregistry/orders/staking/insurance/reputation]
+    AptosIndexer[(Aptos Indexer\nGraphQL API)]
+  end
 
-  1. 直传媒体 → 本地计算 `content_hash`
-  2. Dry-run 估算 gas → 钱包签名 → 直接广播交易
-  3. 轮询/订阅确认 → UI 状态 `pending → confirmed`
-* **关键读取策略**：详情页 **直读链**（防索引延迟）；列表/排行榜可走 BFF 并在详情处二次直链确认。
-* **可验证性**：展示媒体前再次计算哈希，与链上哈希比对一致才显示“已验证”。
+  AptosRPC <-->|交易/事件| MoveModules
+  MoveModules -->|事件| AptosIndexer
+  BFF -.GraphQL.-> AptosIndexer
 
-### 5.4 直链交互模板（TypeScript）
+  Ops[(运营工具/告警)] -->|API| BFF
+  Ops -->|GraphQL| Hasura
+
+  classDef infra fill:#f7fafd,stroke:#5b8def,stroke-width:1px;
+  classDef backend fill:#fdf7f3,stroke:#ffa657;
+  classDef frontend fill:#f5f8ff,stroke:#6366f1;
+  classDef onchain fill:#f7fff4,stroke:#22c55e;
+  classDef datastore fill:#fff7fb,stroke:#d946ef;
+
+  class WebApp frontend;
+  class Wallet infra;
+  class BFF,Hasura backend;
+  class Postgres,MediaStore datastore;
+  class MoveModules,AptosIndexer onchain;
+  class AptosRPC infra;
+```
+
+## 3. 链上合约设计
+| 模块 | 功能要点 | 主要事件 |
+|------|----------|----------|
+| `hai_go::registry` | 商家/仓主注册、档案哈希存储；重复注册和权限校验 | `SellerRegistered`, `WarehouseRegistered` |
+| `hai_go::orders` | 订单状态机（`ORDER_CREATED → WAREHOUSE_IN → IN_STORAGE → WAREHOUSE_OUT`）、费用记录、物流单号、媒体哈希 | `OrderCreated`, `CheckedIn`, `SetInStorage`, `CheckedOut` |
+| `hai_go::staking` | APT/稳定币质押与信用权重；多次变更生成快照 | `StakeChanged` |
+| `hai_go::insurance` | 理赔开启、审批/拒绝及赔付金额记录 | `ClaimOpened`, `ClaimResolved` |
+| `hai_go::reputation` | 仓主评分与链下评价哈希记录 | `RatingSubmitted` |
+
+Move 单元测试覆盖：正常流程、权限/状态机异常、重复调用、事件字段校验。部署通过脚本输出模块地址，供前端和 BFF 使用。
+
+## 4. 链下服务与数据流
+### 4.1 BFF / Media Ingestor
+- 技术栈：NestJS/Fastify + TypeScript。
+- 责任：
+  1. 生成订单、质押等前端需要的派生数据端点（聚合 Aptos Indexer API 与本地 Postgres/Hasura 数据）。
+  2. 处理媒体上传：
+     - 验证 MIME/大小（图片 ≤15 MB，视频 ≤200 MB）。
+     - 计算 `blake3` 哈希并写入 Postgres `media_assets`（PoC 可用 JSON 存储）。
+     - 保存到本地路径 `media://{record_uid}/{filename}`，对外通过 Nginx/静态服务公开。
+  3. 提供链下哈希复核接口，允许运营或用户重新校验媒体。
+
+- 直接复用 Aptos Labs 托管的 Indexer GraphQL API（`https://api.<network>.aptoslabs.com/v1/graphql`）获取基础链上数据：账户信息、可替代资产余额、通用交易历史等。借助 `where` 子句即可筛选 HaiGo 自定义 Move 事件，例如按 `type = "0xHAIGO::orders::CheckedIn"` 获取订单时间线。
+- `apps/bff` 基于该 GraphQL API 封装常用查询（订单事件、质押快照、理赔记录、评分列表），并负责与本地媒体元数据合并，向前端提供统一的 REST/GraphQL 接口。
+- 仅当需要长期保留快照或复杂聚合（运营报表、离线分析）时，再引入 Aptos Build No-Code Indexer Processor，将事件落地到 `docs/architecture/indexer-schema.md` 中定义的表结构。PoC 阶段可暂缓自建 Processor，专注官方 Indexer + BFF 聚合，实现最小可行链上数据闭环。
+
+### 4.2 数据模型定义
+- **总体原则**：链下数据全部集中在 Postgres，Hasura 作为 GraphQL BFF 暴露结构化查询；所有链上事件均以 `txn_version + event_index` 去重，并保留 `chain_timestamp` 便于回放。
+- **核心实体（PoC 范围）**：
+
+  | 表名 | 主键/索引 | 关键字段 | 说明 |
+  |------|-----------|----------|------|
+  | `accounts` | PK: `account_address`；唯一索引 `(txn_version, event_index)` | `role`, `profile_hash_algo`, `profile_hash_value`, `profile_uri` | 映射注册事件，区分商家/仓主身份，后续可追加 KYC 元数据。 |
+  | `orders` | PK: `record_uid`；索引 `creator_address`, `warehouse_address`, `status` | `status`, `storage_fee`, `insurance_fee`, `last_media_hash_*`, `logistics_*` | 代表订单主视图，`last_*` 字段跟踪最新链上状态与媒体哈希。 |
+  | `order_events` | PK: `id`（序列）；唯一索引 `(txn_version, event_index)`；索引 `record_uid` | `event_type`, `media_hash_*`, `logistics_no`, `payload` | 保存订单时间线的每一次状态变更，`payload` 存储事件原始 JSON。 |
+  | `staking_positions` | PK: `id`；唯一索引 `(txn_version, event_index)`；索引 `owner_address` | `asset_type`, `total_amount`, `credit_weight` | 质押事件快照，BFF 通过 `ORDER BY txn_version DESC` 获取最新值。 |
+  | `claims` | PK: `claim_id`；唯一索引 `(last_event_version, last_event_index)`；索引 `record_uid` | `status`, `payout_amount`, `payout_currency`, `evidence_hash_*`, `resolution_hash_*` | 理赔流程主表，支持按订单维度聚合查询。 |
+  | `ratings` | PK: `id`；唯一索引 `(txn_version, event_index)`；索引 `warehouse_address` | `score`, `review_hash_*`, `record_uid` | 仓主评分记录，支撑信用榜单与反馈抽样。 |
+  | `media_assets` | PK: `id`；唯一索引 `(record_uid, storage_path)`；索引 `hash_value`, `owner_address` | `storage_path`, `hash_algo`, `hash_value`, `mime_type`, `size_bytes`, `uploaded_by` | 链下媒体元数据，与本地磁盘路径或未来 OSS 对象一一映射，`hash_value` 支撑查重与重新校验。 |
+
+- **关系约束**：
+  - `orders.record_uid` ↔ `order_events.record_uid`（1:N）、`claims.record_uid`、`ratings.record_uid`，用于订单详情聚合。
+  - `accounts.account_address` 与 `orders.creator_address`、`orders.warehouse_address` 建立 Hasura 手动关系，便于查询身份信息。
+  - `media_assets.record_uid` 可选外键到 `orders.record_uid`，PoC 阶段通过应用层校验以避免硬依赖。
+
+- **Hasura 配置要点**：追踪上述表后，将 `orders.status`、`claims.status`、`order_events.event_type` 以 enum mapping 暴露，更利于前端消费；匿名角色仅开放 `select` 查询，运营角色开放 `aggregate` 与媒体检索。
+- **扩展指引**：如需引入自建 Indexer Processor，请复用 `docs/detail/indexer-schema.md` 中的完整 DDL；未来引入 OSS 时，在 `media_assets` 增加 `storage_provider`, `bucket`, `object_key`。数据保留策略初期以 90 天回溯为界，后续结合监管要求调整。
+
+### 4.3 媒体存储策略
+- PoC：本地磁盘 + 定期 rsync 备份。
+- 预留接口 `StorageProvider`：未来切换到阿里云 OSS（SSE-KMS、生命周期管理、访问日志）。
+
+### 4.4 BFF API 接口规范
+| Method | Path | 说明 | 请求参数 | 响应示例 |
+|--------|------|------|----------|----------|
+| `GET` | `/api/accounts/:address` | 返回地址对应的商家/仓主档案、注册哈希及订单统计 | `address`：Aptos 地址 | `{ "address": "0x...", "role": "seller", "profileHash": { "algo": "blake3", "value": "..." }, "registeredAt": "2025-09-15T12:30:00Z", "orderCount": 4 }` |
+| `POST` | `/api/media/uploads` | 处理媒体上传；PoC 直接写本地磁盘，返回存储路径与哈希 | `multipart/form-data`：`record_uid`, `media` | `{ "recordUid": "HG-202509-0001", "path": "/media/HG-202509-0001/inbound-1.jpg", "hash": { "algo": "blake3", "value": "..." } }` |
+| `GET` | `/api/orders/:record_uid` | 聚合订单当前状态、时间线、媒体哈希验证结果 | `record_uid` | `{ "recordUid": "HG-202509-0001", "status": "WAREHOUSE_IN", "timeline": [...], "hashVerified": true }` |
+| `GET` | `/api/orders` | 支持分页与筛选的订单列表，供运营/商家看板使用 | Query：`role`, `warehouseAddress`, `status`, `limit`, `cursor` | `{ "data": [...], "nextCursor": "..." }` |
+| `GET` | `/api/staking/:address` | 返回仓主质押额度与信用权重快照 | `address` | `{ "owner": "0x...", "assetType": "0x1::aptos_coin::AptosCoin", "totalAmount": "1200", "creditWeight": "0.85", "updatedAt": "2025-09-16T02:20:00Z" }` |
+| `GET` | `/api/claims/:record_uid` | 订单关联的理赔状态列表 | `record_uid` | `{ "recordUid": "HG-202509-0001", "claims": [{ "claimId": "CLM-01", "status": "OPEN", "evidenceHash": "..." }] }` |
+
+接口统一返回 `meta.requestId`、`meta.timestamp` 字段，错误响应遵循 `code/message/details` 格式，并在响应头附带 `x-haigo-trace-id` 以便前端追踪。
+
+### 4.5 Hasura GraphQL 摘要
+- `query accountByAddress($address: String!)`：从 `accounts` 表读取角色与档案哈希。
+- `query ordersByCreator($creator: String!, $limit: Int)`：基于 `orders` + `order_events` 关系返回订单及时间线。
+- `query stakingHistory($owner: String!, $limit: Int = 20)`：分页查询 `staking_positions` 快照。
+- `query claimsByRecord($recordUid: String!)`：拉取 `claims` 表及最新状态字段。
+
+Hasura Metadata 设置：
+1. 为上述查询定义 `Query Collection`，供前端与 BFF 重用。
+2. `anonymous` 角色开放只读查询（可通过 `allow_aggregations=false` 限制聚合）。
+3. `operations` 角色允许 `aggregate` 与复杂过滤，用于运营看板。
+
+### 4.6 核心接口与类设计
+- **共享类型（`packages/shared/src/dto`）**：以 TypeScript interface 表达链上/链下统一数据模型，供前端与 BFF 复用。
 
 ```ts
-import { Aptos, AptosConfig, Network, InputEntryFunctionData, UserTransactionResponse } from "@aptos-labs/ts-sdk";
-import { WalletClient } from "@aptos-labs/wallet-adapter-core";
+export type OrderStatus = 'ORDER_CREATED' | 'WAREHOUSE_IN' | 'IN_STORAGE' | 'WAREHOUSE_OUT';
 
-const MODULE_ADDRESS = process.env.NEXT_PUBLIC_HAIGO_MODULE_ADDRESS!;
-const MODULE = `${MODULE_ADDRESS}::warehouse_rwa`;
+export interface AccountProfile {
+  address: string;
+  role: 'seller' | 'warehouse';
+  profileHash: { algo: 'blake3'; value: string };
+  profileUri?: string;
+  registeredAt: string; // ISO timestamp
+}
 
-const textEncoder = new TextEncoder();
+export interface OrderTimelineEvent {
+  recordUid: string;
+  type: OrderStatus;
+  chainVersion: number;
+  chainIndex: number;
+  occurredAt: string;
+  mediaHash?: { algo: 'blake3'; value: string };
+  logisticsNo?: string;
+  payload?: Record<string, unknown>;
+}
 
-export type MediaHash = {
-  algo: number;
-  digest: Uint8Array;
-};
-
-export type CreateOrderArgs = {
+export interface OrderSummary {
+  recordUid: string;
+  creator: string;
   warehouse: string;
-  valueDeclared: bigint;
-  storageFee: bigint;
-  insuranceFee: bigint;
-  paymentTxHash: Uint8Array;
-  metaHash?: MediaHash;
-  clientCreatedAt: bigint;
-};
-
-export type CheckpointArgs = {
-  recordUid: bigint;
-  trackingNo: string;
-  mediaHash: MediaHash;
-  clientTs: bigint;
-};
-
-const aptos = new Aptos(new AptosConfig({ network: (process.env.NEXT_PUBLIC_APTOS_NETWORK as Network) ?? Network.TESTNET }));
-
-async function signAndSubmit(
-  wallet: WalletClient,
-  sender: string,
-  data: InputEntryFunctionData
-): Promise<UserTransactionResponse> {
-  const pending = await wallet.signAndSubmitTransaction({ sender, data });
-  return aptos.waitForTransaction({ transactionHash: pending.hash });
+  status: OrderStatus;
+  storageFee: string;
+  insuranceFee: string;
+  lastMediaHash?: { algo: string; value: string };
+  logisticsInboundNo?: string;
+  logisticsOutboundNo?: string;
+  timeline: OrderTimelineEvent[];
 }
 
-export async function createOrder(wallet: WalletClient, sender: string, args: CreateOrderArgs) {
-  const hasMeta = Boolean(args.metaHash);
-  const meta = args.metaHash ?? { algo: 0, digest: new Uint8Array() };
-
-  return signAndSubmit(wallet, sender, {
-    function: `${MODULE}::create_order`,
-    typeArguments: [],
-    functionArguments: [
-      args.warehouse,
-      args.valueDeclared,
-      args.storageFee,
-      args.insuranceFee,
-      args.paymentTxHash,
-      hasMeta,
-      meta.algo,
-      meta.digest,
-      args.clientCreatedAt,
-    ],
-  });
+export interface StakingSnapshot {
+  owner: string;
+  assetType: string;
+  totalAmount: string;
+  creditWeight?: string;
+  updatedAt: string;
 }
 
-export async function checkIn(wallet: WalletClient, sender: string, args: CheckpointArgs) {
-  return signAndSubmit(wallet, sender, {
-    function: `${MODULE}::check_in`,
-    typeArguments: [],
-    functionArguments: [
-      args.recordUid,
-      utf8ToBytes(args.trackingNo),
-      args.mediaHash.algo,
-      args.mediaHash.digest,
-      args.clientTs,
-    ],
-  });
+export interface ClaimRecord {
+  claimId: string;
+  recordUid: string;
+  status: 'OPEN' | 'RESOLVED' | 'REJECTED';
+  payoutAmount?: string;
+  payoutCurrency?: string;
+  evidenceHash?: { algo: string; value: string };
+  resolutionHash?: { algo: string; value: string };
+  updatedAt: string;
 }
 
-export async function setInStorage(wallet: WalletClient, sender: string, recordUid: bigint, clientTs: bigint) {
-  return signAndSubmit(wallet, sender, {
-    function: `${MODULE}::set_in_storage`,
-    typeArguments: [],
-    functionArguments: [recordUid, clientTs],
-  });
+export interface RatingRecord {
+  id: string;
+  warehouse: string;
+  rater: string;
+  recordUid: string;
+  score: 1 | 2 | 3 | 4 | 5;
+  reviewHash?: { algo: string; value: string };
+  submittedAt: string;
 }
 
-export async function checkOut(wallet: WalletClient, sender: string, args: CheckpointArgs) {
-  return signAndSubmit(wallet, sender, {
-    function: `${MODULE}::check_out`,
-    typeArguments: [],
-    functionArguments: [
-      args.recordUid,
-      utf8ToBytes(args.trackingNo),
-      args.mediaHash.algo,
-      args.mediaHash.digest,
-      args.clientTs,
-    ],
-  });
-}
-
-export function hexToBytes(hex: string): Uint8Array {
-  const normalized = hex.startsWith("0x") ? hex.slice(2) : hex;
-  if (normalized.length % 2 !== 0) {
-    throw new Error("Invalid hex string");
-  }
-  const bytes = new Uint8Array(normalized.length / 2);
-  for (let i = 0; i < normalized.length; i += 2) {
-    bytes[i / 2] = parseInt(normalized.slice(i, i + 2), 16);
-  }
-  return bytes;
-}
-
-export function utf8ToBytes(value: string): Uint8Array {
-  return textEncoder.encode(value);
-}
-
-export function bytesToHex(bytes: Uint8Array): string {
-  return `0x${Array.from(bytes)
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("")}`;
-}
-
-// 可选：封装媒体直传、哈希计算与 BFF commit
-export async function uploadAndCommitMedia(
-  file: File,
-  presignUrl: string,
-  commit: (params: { objectKey: string; hash: { algo: string; digest: string } }) => Promise<void>,
-  hashFn: (file: File) => Promise<MediaHash>
-) {
-  const mediaHash = await hashFn(file);
-  await fetch(presignUrl, { method: "PUT", body: file });
-  await commit({
-    objectKey: new URL(presignUrl).pathname,
-    hash: { algo: String(mediaHash.algo), digest: bytesToHex(mediaHash.digest) },
-  });
-  return mediaHash;
+export interface MediaAssetMeta {
+  id: string;
+  recordUid: string;
+  storagePath: string;
+  hash: { algo: string; value: string };
+  mimeType: string;
+  sizeBytes: number;
+  uploadedBy: string;
+  uploadedAt: string;
 }
 ```
 
----
+- **BFF 服务分层（`apps/bff/src/modules`）**：每个领域模块暴露 Controller（HTTP GraphQL）、Service（业务组合）与 Repository（数据访问）三层。
 
-## 6. BFF / Indexing (Read-only)
+```ts
+// apps/bff/src/modules/orders/orders.service.ts
+@Injectable()
+export class OrdersService {
+  constructor(
+    private readonly indexerRepo: OrdersIndexerRepository,
+    private readonly hasuraRepo: OrdersHasuraRepository,
+    private readonly mediaRepo: MediaRepository,
+  ) {}
 
-* **职责**：事件消费、聚合/搜索、统计排行、地图可视化、媒体预签名上传与元数据登记。
-* **API（示例）**：
+  async getOrder(recordUid: string): Promise<OrderSummary> {
+    const [order, events, media] = await Promise.all([
+      this.indexerRepo.fetchOrder(recordUid),
+      this.indexerRepo.fetchTimeline(recordUid),
+      this.mediaRepo.listByRecord(recordUid),
+    ]);
+    return mapOrderAggregate(order, events, media);
+  }
 
-  * `POST /media/presign` → 返回对象存储直传凭证
-  * `POST /media/commit` → 记录 object\_key/hash/algo/size/mime
-  * `GET /orders`、`GET /orders/{uid}`、`GET /warehouses`、`GET /rankings`
-* **技术**：Postgres（JSONB/GIN）、Redis（缓存）、消息队列（Kafka/SQS/Redis Stream）。
-* **注意**：**不代签、不代付、不代理交易广播**。
+  async listOrders(filter: ListOrdersFilter): Promise<Paginated<OrderSummary>> {
+    return this.hasuraRepo.queryOrders(filter);
+  }
+}
 
-### 6.1 Read-only BFF OpenAPI 3.1（含预签名、排行、搜索）
+// apps/bff/src/modules/media/media.repository.ts
+@Injectable()
+export class MediaRepository {
+  constructor(private readonly prisma: PrismaService) {}
 
-```yaml
-openapi: 3.1.0
-info:
-  title: HaiGo Read API
-  version: v0.1.0
-  description: Read-only BFF for HaiGo dApp. All write operations go directly to Aptos.
-servers:
-  - url: https://api.haigo.dev
-    description: Staging (Aptos Testnet)
-  - url: https://api.haigo.app
-    description: Production (Aptos Mainnet)
-tags:
-  - name: media
-    description: Media presign & commit helpers
-  - name: orders
-    description: Read models for orders
-  - name: warehouses
-    description: Warehouse discovery and ranking
-paths:
-  /media/presign:
-    post:
-      tags: [media]
-      summary: Issue presigned upload credential
-      security: [{ ApiKeyAuth: [] }]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/MediaPresignRequest'
-      responses:
-        '200':
-          description: Presigned payload
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/MediaPresignResponse'
-        '403': { description: Forbidden - fails KYC/rate limiting }
-  /media/commit:
-    post:
-      tags: [media]
-      summary: Persist uploaded media metadata and optional attestation
-      security: [{ ApiKeyAuth: [] }]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/MediaCommitRequest'
-      responses:
-        '204': { description: Commit accepted }
-        '409': { description: Duplicate object key or hash mismatch }
-  /orders:
-    get:
-      tags: [orders]
-      summary: List orders with optional filters
-      parameters:
-        - in: query
-          name: status
-          schema:
-            type: string
-            enum: [CREATED, IN, STORAGE, OUT]
-        - in: query
-          name: seller
-          schema:
-            type: string
-            format: address
-        - in: query
-          name: warehouse
-          schema:
-            type: string
-            format: address
-        - in: query
-          name: cursor
-          schema:
-            type: string
-        - in: query
-          name: limit
-          schema:
-            type: integer
-            default: 20
-            maximum: 100
-      responses:
-        '200':
-          description: Paginated order summaries
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/OrderListResponse'
-  /orders/{record_uid}:
-    get:
-      tags: [orders]
-      summary: Fetch a single order read model enriched from events
-      parameters:
-        - in: path
-          name: record_uid
-          required: true
-          schema:
-            type: string
-      responses:
-        '200':
-          description: Order detail
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/OrderDetail'
-        '404': { description: Order not found }
-  /warehouses:
-    get:
-      tags: [warehouses]
-      summary: Warehouse discovery listing
-      parameters:
-        - in: query
-          name: region
-          schema:
-            type: string
-        - in: query
-          name: capacity_min
-          schema:
-            type: integer
-        - in: query
-          name: staking_min
-          schema:
-            type: integer
-        - in: query
-          name: sort
-          schema:
-            type: string
-            enum: [rank, rating, staking, throughput]
-      responses:
-        '200':
-          description: Warehouses
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/WarehouseListResponse'
-  /rankings:
-    get:
-      tags: [warehouses]
-      summary: Pre-computed rankings for leaderboard components
-      parameters:
-        - in: query
-          name: dimension
-          schema:
-            type: string
-            enum: [overall, speed, reliability, staking]
-      responses:
-        '200':
-          description: Ranking buckets
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/RankingResponse'
-  /search:
-    get:
-      tags: [orders]
-      summary: Full-text search across orders and warehouses
-      parameters:
-        - in: query
-          name: q
-          required: true
-          schema:
-            type: string
-        - in: query
-          name: type
-          schema:
-            type: string
-            enum: [order, warehouse, mixed]
-      responses:
-        '200':
-          description: Ranked search results with highlights
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SearchResponse'
-components:
-  securitySchemes:
-    ApiKeyAuth:
-      type: apiKey
-      in: header
-      name: X-API-Key
-  schemas:
-    ContentHash:
-      type: object
-      properties:
-        algo:
-          type: string
-          description: Hash algorithm identifier (e.g. blake3)
-        digest:
-          type: string
-          description: Hex digest string
-    MediaPresignRequest:
-      type: object
-      required: [objectKey, mime, size]
-      properties:
-        objectKey:
-          type: string
-        mime:
-          type: string
-        size:
-          type: integer
-        purpose:
-          type: string
-          enum: [order_in, order_out, warehouse_profile]
-    MediaPresignResponse:
-      type: object
-      required: [uploadUrl, headers, expiresAt]
-      properties:
-        uploadUrl:
-          type: string
-        expiresAt:
-          type: string
-          format: date-time
-        headers:
-          type: object
-          additionalProperties:
-            type: string
-    MediaCommitRequest:
-      type: object
-      required: [objectKey, hash]
-      properties:
-        objectKey:
-          type: string
-        hash:
-          $ref: '#/components/schemas/ContentHash'
-        size:
-          type: integer
-        mime:
-          type: string
-        uploader:
-          type: string
-          format: address
-        orderUid:
-          type: string
-          nullable: true
-    OrderListResponse:
-      type: object
-      properties:
-        data:
-          type: array
-          items:
-            $ref: '#/components/schemas/OrderSummary'
-        nextCursor:
-          type: string
-          nullable: true
-    OrderSummary:
-      type: object
-      properties:
-        recordUid:
-          type: string
-        status:
-          type: string
-        seller:
-          type: string
-        warehouse:
-          type: string
-        createdAt:
-          type: string
-          format: date-time
-        latestClientTs:
-          type: string
-          format: date-time
-    OrderDetail:
-      allOf:
-        - $ref: '#/components/schemas/OrderSummary'
-        - type: object
-          properties:
-            valueDeclared:
-              type: integer
-            storageFee:
-              type: integer
-            insuranceFee:
-              type: integer
-            checkIn:
-              $ref: '#/components/schemas/LogisticsCheckpoint'
-            inStorageAt:
-              type: string
-              format: date-time
-              nullable: true
-            checkOut:
-              $ref: '#/components/schemas/LogisticsCheckpoint'
-    LogisticsCheckpoint:
-      type: object
-      properties:
-        trackingNo:
-          type: string
-        mediaHash:
-          $ref: '#/components/schemas/ContentHash'
-        clientTs:
-          type: string
-          format: date-time
-    WarehouseListResponse:
-      type: object
-      properties:
-        data:
-          type: array
-          items:
-            $ref: '#/components/schemas/WarehouseSummary'
-    WarehouseSummary:
-      type: object
-      properties:
-        address:
-          type: string
-        region:
-          type: string
-        staking:
-          type: integer
-        rating:
-          type: number
-        capacity:
-          type: integer
-        serviceTags:
-          type: array
-          items:
-            type: string
-    RankingResponse:
-      type: object
-      properties:
-        dimension:
-          type: string
-        buckets:
-          type: array
-          items:
-            $ref: '#/components/schemas/RankingEntry'
-    RankingEntry:
-      type: object
-      properties:
-        warehouse:
-          type: string
-        score:
-          type: number
-        rank:
-          type: integer
-        stats:
-          type: object
-          additionalProperties:
-            type: number
-    SearchResponse:
-      type: object
-      properties:
-        query:
-          type: string
-        results:
-          type: array
-          items:
-            oneOf:
-              - $ref: '#/components/schemas/OrderSummary'
-              - $ref: '#/components/schemas/WarehouseSummary'
-        tookMs:
-          type: integer
+  async listByRecord(recordUid: string): Promise<MediaAssetMeta[]> {
+    return this.prisma.mediaAsset.findMany({ where: { recordUid } });
+  }
+}
 ```
 
----
+- **前端特性模块（`apps/web/features`）**：以“页面入口 + hooks + 组件”组织，每个特性依赖共享 DTO 与轻量查询客户端。
+  - `features/orders`：订单详情页 `OrderDetailPage.tsx`，调用 `useOrder(recordUid)` Hook（封装自 BFF REST/GraphQL + DTO 类型）。
+  - `features/staking`：质押榜单组件 `StakingLeaderboard.tsx`，消耗 `StakingSnapshot[]`。
+  - `features/claims`：理赔状态面板，复用 `ClaimRecord`。
 
-## 7. Key Sequences
+- **Move 脚本接口**：`move/scripts/deploy.mjs` 暴露 `deployModules(env): Promise<DeployedAddresses>`，将模块地址写回 `packages/shared/src/config/aptos.ts`，供前后端统一引用。
 
-### 7.1 下单（ORDER\_CREATED）
+## 5. 前端体验
+- Next.js + `@aptos-labs/wallet-adapter-react`，支持 Petra/Martian 自动连接；钱包网络需校验与合约部署环境一致。
+- 核心页面：
+  1. 注册与档案上传：展示链上身份状态、触发 `register_*` 交易、同步哈希。
+  2. 仓库市场与信用分榜单：消费 BFF 的筛选接口。
+  3. 订单创建/时间线：调用合约后监听事件，展示媒体哈希验证按钮和区块浏览器链接。
+  4. 理赔/质押面板：结合链上数据与 BFF 从 `claims`/`staking_positions` 提供的快照。
+- 国际化：使用 i18next/Day.js，默认中文，可切换英文，时间根据用户时区渲染。
 
-1. Seller 在 Listing 选仓（BFF 列表 + 链上可用状态直查）
-2. 若有媒体，前端直传 S3/MinIO 等对象存储 → 计算 `content_hash`
-3. 调用 `create_order(...)`（钱包签名→直链）
-4. 前端监听确认 & 显示结果；BFF 异步索引事件供列表/排行使用
+## 6. 部署与环境
+- **本地开发**：
+- 使用 Docker Compose 启动 Postgres、Hasura、BFF；本地调试时直接指向 Aptos 官方 Indexer GraphQL。若需验证自建 Processor，可额外在 Aptos Build 控制台创建 No-Code Indexer 并连接本地 Postgres。
+  - 本地媒体目录挂载至 `./storage/media`，通过 `.env.local` 配置 `MEDIA_ROOT`。
+  - `apps/web` 通过 `NEXT_PUBLIC_HASURA_URL`、`NEXT_PUBLIC_BFF_URL` 连接后端。
+- **测试网环境**：
+  - Aptos 合约部署到测试网，模块地址写入 `packages/shared/config/aptos.ts`。
+  - BFF 与 Hasura 部署在单台云主机或 Kubernetes 节点（阿里云 ECS/ACK），开启 HTTPS。
+  - 媒体目录挂载云盘（ESSD），每日利用 OSS 同步脚本备份。
+- **CI/CD**：
+  1. GitHub Actions（或阿里云流水线）三阶段：`move-test`、`backend-test`、`frontend-build`。
+  2. 构建产物：Move 模块 `build/`、BFF Docker 镜像、Next.js 静态资源。
+  3. 通过环境变量控制部署目标（`ENV=dev/testnet`）。合约部署需人工审批。
+- **基础设施即代码**：
+  - Terraform 管理 ECS、RDS（Postgres）、OSS Bucket（预留）、安全组；若暂未接入 Terraform，可用阿里云 ROS 模板起步。
+  - Ansible/Shell 脚本负责 BFF/Hasura 服务的容器化部署与环境变量注入。
 
-### 7.2 入库（WAREHOUSE\_IN）
+## 7. 安全、合规与运维
+- **链上**：模块部署在资源账户，理赔决议等敏感操作使用多签能力。对金额相关函数执行链下预校验，避免错误支付。
+- **链下**：上传接口启用身份校验（签名 + nonce 或短期 JWT），防止未经授权的媒体写入。日志记录上传者、哈希、IP。
+- **备份与监控**：
+  - 每日备份本地媒体目录及 Postgres 数据。
+  - Prometheus/Grafana（或最简日志告警）监控 Indexer 延迟、BFF 错误率、媒体哈希检测结果。
+  - Hasura/Indexer 提供 `/health` 端点，CI 监测可用性。
+- **合规**：PoC 阶段所有媒体视为公开；若后续引入敏感信息，需要启用 OSS + KMS、访问控制与对象锁。
 
-1. 仓主直传入库照片 → 计算 `in_media_hash`
-2. 钱包直调 `check_in(record_uid, tracking_no, in_media_hash)`
-3. 前端确认；BFF 更新读模型
+## 8. 演进路线
+| 里程碑 | 目标 | 关键动作 |
+|--------|------|----------|
+| M0 | PoC 基座 | 完成 Move 模块骨架、Indexing Pipeline、前端钱包接入、媒体本地存储闭环 |
+| M1 | PoC 增强 | 引入哈希抽检、质押信用榜、理赔流程端到端演示 |
+| M2 | 准生产 | 迁移 OSS、完善告警、加强访问控制、CI 覆盖 E2E 测试 |
 
-### 7.3 仓储中（IN\_STORAGE）
+迁移至生产时需执行：对象存储替换、Hasura 权限细化（匿名→只读子集）、索引高可用、链上合约审计。
 
-1. 仓主钱包直调 `set_in_storage(record_uid)`
-2. 前端确认；BFF 更新读模型
-
-### 7.4 出库（WAREHOUSE\_OUT）
-
-1. 仓主直传出库照片 → 计算 `out_media_hash`
-2. 钱包直调 `check_out(record_uid, tracking_no, out_media_hash)`
-3. 前端确认；BFF 更新读模型
-
----
-
-## 8. Security, Privacy & Compliance
-
-* **最小权限**：合约强约束权利人；前端限制合约地址白名单。
-* **输入校验**：tracking\_no 长度、哈希长度与算法白名单、MIME/大小限制。
-* **重放/越序**：`record_uid` 唯一、严格状态机、按钮防抖与重复提交拦截。
-* **隐私**：PII 链下存储；仅摘要上链；审计日志与访问控制。
-* **KYC/AML**：作为链下访问门槛（访问 BFF/对象存储时启用），不阻断链上交易（可配置开关）。
-* **应急**：暂停开关（Pause），只读模式，公告与回滚预案。
-
----
-
-## 9. Observability & Ops
-
-* **指标**：交易成功/失败率、确认延迟；事件消费滞后；媒体哈希校验通过率；API QPS/错误率；缓存命中率。
-* **日志**：结构化日志 + TraceID（前端→BFF→Indexer）；关键操作审计日志。
-* **告警**：状态机异常（越序/重复）、消费积压、Hash 校验失败、费用飙升。
-* **任务**：定期 hash 复核、冷数据归档、排行榜重算。
-
----
-
-## 10. Performance & Cost
-
-* **链上**：4 次状态写入/订单；事件 payload 精简（短字符串、定长哈希）。
-* **BFF**：读多写少；Redis 缓存与分页；热门榜单物化视图。
-* **媒体**：分辨率与压缩策略；S3 生命周期（标准→IA→Glacier）；多区域副本与成本控制。
-
----
-
-## 11. Environments & Release
-
-* **环境**：`dev`/`staging`/`prod`（Aptos testnet/mainnet）。
-* **特性开关**：保险/质押、评分、KYC、暂停（Pause）。
-* **灰度**：钱包白名单；前端 `env` 注入只读/读写模式；合约 `version` 升级策略。
-
----
-
-## 12. CI/CD & Quality
-
-* **合约**：Move 单测（状态机/权限/事件/错误码）、lint、gas 报告；testnet 自动部署、mainnet 人审。
-* **BFF**：API 单测、契约测试、集成测试（事件回放）。
-* **前端**：组件快照、E2E（Playwright/Cypress）、钱包模拟、弱网/失败重试测试。
-
----
-
-## 13. Risks & Mitigation
-
-* **索引延迟导致读写不一致** → 详情页直读链 + 乐观更新回滚。
-* **媒体不可达/篡改** → 多副本 + 强制哈希比对 + 告警与重试。
-* **恶意刷单/差评攻击** → 质押门槛 + 速率限制 + 信誉衰减模型。
-* **跨境合规不确定** → 合规模块插件化，按市场逐步启用。
-
----
-
-## 14. Milestones（与 PRD v1.2 对齐）
-
-* **MVP（4–6 周）**：Move 状态机与事件、前端直链交互、媒体直传与哈希校验、BFF 列表与基础排行、监控与告警基线。
-* **Beta（+6–8 周）**：保险理赔与评分全流、地图/排行榜增强、风控策略。
-* **v1.0（+8–10 周）**：多资产与费率策略、合规/KYC、审计与主网发布。
-
----
-
-## 15. Appendix – Interfaces Snapshot
-
-**On-chain Entrypoints**：`create_order` / `check_in` / `set_in_storage` / `check_out`（+ stake/claim/rate 扩展）
-
-**BFF（只读）API**：`/media/presign`、`/media/commit`、`/orders`、`/orders/{uid}`、`/warehouses`、`/rankings`、`/metrics`
-
-**ContentHash（统一结构）**：`{ algo: "keccak256|blake3", digestHex: string, size: number, mime: string }`
-
-**状态机**：`CREATED → IN → STORAGE → OUT`（每步均产生 Event 并写入区块）
+## 9. 附件
+- `docs/prd.md`：详细需求列表。
+- `docs/detail/indexer-schema.md`：若未来启用自建 Processor，可参考的事件表结构。
+- `docs/front-end-spec.md`：前端交互与视觉规范，指导 UI 实现。
+- `docs/runbook.md`：开发与部署 Runbook，涵盖本地/测试网流程与操作手册。
+- 未来将补充：部署说明、API 规格、测试策略。

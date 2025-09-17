@@ -1,0 +1,603 @@
+:root {
+  color-scheme: light dark;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  min-height: 100vh;
+  background: #f5f5f5;
+  color: #111;
+}
+
+@media (prefers-color-scheme: dark) {
+  body {
+    background: #0f172a;
+    color: #f8fafc;
+  }
+}
+
+main {
+  text-align: center;
+}
+
+.register-shell {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 48px 24px 64px;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+}
+
+.register-shell__header {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.register-shell__title {
+  font-size: 2rem;
+  margin: 0;
+}
+
+.register-shell__subtitle {
+  font-size: 1rem;
+  margin: 0;
+  color: #475569;
+}
+
+.wallet-panel {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  box-shadow: 0 10px 25px rgba(15, 23, 42, 0.04);
+}
+
+.wallet-panel__summary {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.haigo-status {
+  width: 12px;
+  height: 12px;
+  border-radius: 9999px;
+  display: inline-block;
+}
+
+.haigo-status--disconnected {
+  background: #94a3b8;
+}
+
+.haigo-status--connecting {
+  background: #fbbf24;
+}
+
+.haigo-status--connected {
+  background: #22c55e;
+}
+
+.wallet-panel__status {
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.wallet-panel__address,
+.wallet-panel__placeholder {
+  font-size: 0.95rem;
+  color: #0f172a;
+  background: transparent;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.wallet-panel__placeholder {
+  cursor: default;
+  text-decoration: none;
+  color: #64748b;
+}
+
+.wallet-panel__error {
+  margin: 0;
+  color: #b91c1c;
+  font-size: 0.9rem;
+}
+
+.wallet-panel__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.wallet-panel__network {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.wallet-panel__network-label {
+  font-size: 0.875rem;
+  color: #64748b;
+}
+
+.wallet-panel__network-badge {
+  padding: 4px 10px;
+  border-radius: 9999px;
+  background: #e2e8f0;
+  font-size: 0.85rem;
+  text-transform: capitalize;
+}
+
+.wallet-panel__network-badge--warning {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.wallet-panel__retry {
+  border: none;
+  background: transparent;
+  color: #2563eb;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.wallet-panel__buttons {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.wallet-panel__button {
+  border: 1px solid #2563eb;
+  background: #2563eb;
+  color: #ffffff;
+  border-radius: 8px;
+  padding: 8px 12px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: background 0.2s ease;
+}
+
+.wallet-panel__button:hover:not(:disabled) {
+  background: #1d4ed8;
+}
+
+.wallet-panel__button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.wallet-panel__button--secondary {
+  background: #ffffff;
+  color: #1d4ed8;
+}
+
+.register-form {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.05);
+}
+
+.register-form fieldset {
+  border: none;
+  margin: 0;
+  padding: 0;
+}
+
+.register-form legend {
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.register-form__tabs {
+  display: flex;
+  gap: 12px;
+}
+
+.register-form__tab {
+  flex: 1;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid #cbd5f5;
+  background: #f8fafc;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.register-form__tab--active {
+  background: #1d4ed8;
+  color: #ffffff;
+  border-color: #1d4ed8;
+}
+
+.register-form__upload {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.register-form__role-info {
+  margin-top: 12px;
+}
+
+.register-form__role-panel {
+  background: #f1f5f9;
+  border-radius: 12px;
+  padding: 16px;
+  font-size: 0.9rem;
+  color: #1e293b;
+}
+
+.register-form__hint {
+  margin: 0;
+  font-size: 0.85rem;
+  color: #64748b;
+}
+
+.register-form__dropzone {
+  border: 2px dashed #94a3b8;
+  border-radius: 16px;
+  padding: 36px;
+  text-align: center;
+  cursor: pointer;
+  color: #475569;
+}
+
+.register-form__dropzone-text {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.register-form__link {
+  color: #2563eb;
+  text-decoration: underline;
+}
+
+.register-form__file-input {
+  display: none;
+}
+
+.register-form__status {
+  font-size: 0.9rem;
+  color: #2563eb;
+}
+
+.register-form__error {
+  color: #b91c1c;
+  font-weight: 500;
+}
+
+.register-form__preview {
+  background: #f8fafc;
+  border-radius: 12px;
+  padding: 16px;
+  border: 1px solid #e2e8f0;
+}
+
+.register-form__preview dl {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+  margin: 0;
+}
+
+.register-form__preview dt {
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  color: #64748b;
+}
+
+.register-form__preview dd {
+  margin: 0;
+  font-family: 'Roboto Mono', monospace;
+  font-size: 0.85rem;
+}
+
+.register-form__hash {
+  word-break: break-all;
+}
+
+.register-form__clear {
+  margin-top: 12px;
+  background: transparent;
+  border: 1px solid #ef4444;
+  color: #ef4444;
+  border-radius: 8px;
+  padding: 8px 12px;
+  cursor: pointer;
+}
+
+.registration-execution {
+  margin-top: 32px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.05);
+}
+
+.registration-execution__controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.registration-execution__button {
+  border: 1px solid #2563eb;
+  background: #2563eb;
+  color: #ffffff;
+  border-radius: 10px;
+  padding: 10px 16px;
+  cursor: pointer;
+}
+
+.registration-execution__button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.registration-execution__button--primary {
+  align-self: flex-start;
+}
+
+.registration-execution__metrics dl {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+  margin: 0;
+}
+
+.registration-execution__metrics dt {
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  color: #64748b;
+}
+
+.registration-execution__metrics dd {
+  margin: 0;
+  font-family: 'Roboto Mono', monospace;
+}
+
+.registration-execution__error {
+  color: #b91c1c;
+  font-weight: 500;
+}
+
+.registration-timeline {
+  border-top: 1px solid #e2e8f0;
+  padding-top: 16px;
+}
+
+.registration-timeline ol {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  gap: 16px;
+}
+
+.registration-timeline__item {
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: #f1f5f9;
+  color: #475569;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.registration-timeline__item--active {
+  background: #2563eb;
+  color: #ffffff;
+}
+
+.registration-timeline__hash {
+  font-family: 'Roboto Mono', monospace;
+  font-size: 0.8rem;
+}
+
+.registration-timeline__link {
+  color: #2563eb;
+  text-decoration: underline;
+  display: inline-block;
+  margin-top: 8px;
+}
+
+.registration-success {
+  margin-top: 16px;
+  padding: 16px;
+  border-radius: 12px;
+  background: #ecfdf5;
+  color: #166534;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.registration-success code {
+  font-family: 'Roboto Mono', monospace;
+}
+
+.registration-success__actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.registration-success__cta {
+  padding: 10px 16px;
+  border-radius: 10px;
+  background: #22c55e;
+  color: #ffffff;
+  text-decoration: none;
+}
+
+.registration-success__cta--secondary {
+  background: #0ea5e9;
+}
+
+.register-form__details {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.register-form__details input,
+.register-form__details textarea {
+  border-radius: 10px;
+  border: 1px solid #cbd5f5;
+  padding: 10px 12px;
+  font-size: 0.95rem;
+}
+
+.register-form__details textarea {
+  resize: vertical;
+}
+
+.register-form__actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.register-form__submit {
+  border-radius: 12px;
+  border: none;
+  background: #2563eb;
+  color: #ffffff;
+  padding: 14px 18px;
+  font-size: 1rem;
+  cursor: pointer;
+}
+
+.register-form__submit:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.register-form__disabled-hint {
+  margin: 0;
+  color: #64748b;
+  font-size: 0.85rem;
+}
+
+.network-warning {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 16px;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.network-warning__button {
+  align-self: flex-start;
+  border: 1px solid #ef4444;
+  background: #ef4444;
+  color: #ffffff;
+  border-radius: 8px;
+  padding: 10px 16px;
+  cursor: pointer;
+}
+
+.account-status {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 20px;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.04);
+}
+
+.account-status h2 {
+  margin-top: 0;
+  margin-bottom: 12px;
+}
+
+.account-status dl {
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+}
+
+.account-status dt {
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  color: #64748b;
+}
+
+.account-status dd {
+  margin: 0;
+  font-family: 'Roboto Mono', monospace;
+}
+
+.account-status--success {
+  border-color: #bbf7d0;
+  background: #ecfdf5;
+}
+
+.account-status--error {
+  border-color: #fecaca;
+  background: #fef2f2;
+  color: #b91c1c;
+}
+
+.haigo-network-guard {
+  background: #f1f5f9;
+  border: 1px dashed #cbd5f5;
+  padding: 24px;
+  border-radius: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.haigo-network-guard button {
+  align-self: flex-start;
+  border: none;
+  background: #1d4ed8;
+  color: #ffffff;
+  border-radius: 8px;
+  padding: 10px 16px;
+  cursor: pointer;
+}
+
+@media (max-width: 768px) {
+  .register-shell {
+    padding: 32px 16px;
+  }
+
+  .wallet-panel__actions {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .wallet-panel__buttons {
+    width: 100%;
+  }
+
+  .wallet-panel__button {
+    flex: 1 1 auto;
+    width: 100%;
+  }
+}
