@@ -209,7 +209,7 @@ flowchart TD
 **Design File Reference:** Figma → Ops page → Frame `O-Claims-01`。
 
 ## Component Library / Design System
-**Design System Approach:** 基于 HaiGo 品牌样式建立定制 Design System，结合 Radix 与 shadcn 组件库以缩短实施时间，并为 Move/Aptos 交互设计专用票据卡片。
+**Design System Approach:** 基于 HaiGo 品牌样式建立定制 Design System，结合 Radix 与 shadcn 组件库(使用shadCN Mcp)以缩短实施时间，并为 Move/Aptos 交互设计专用票据卡片。
 
 ### Core Components
 #### 订单时间线卡片
@@ -334,6 +334,126 @@ flowchart TD
 - **订单状态推进：** 时间线上节点由灰变为主色，伴随轻微缩放与线条填充（Duration: 160ms, Easing: ease-out）。
 - **哈希验证结果：** 徽章自底部淡入，失败状态附振动提醒（Duration: 180ms, Easing: ease-in-out）。
 - **理赔审批提交：** 按钮成功后展示简短进度条与成功勾（Duration: 200ms, Easing: ease-out）。
+
+## Epic 2 Wireframes (ASCII)
+以下 ASCII 线框遵循本规范的布局、颜色语义和交互原则，为 Story 2.1–2.4 提供视觉基线。Desktop 视图采用 12 列网格，Tablet/Mobile 可按优先级顺序折叠。
+
+### Merchant Order Creation & Fee Payment (Story 2.2)
+```
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ Top Nav │ Wallet Status │ Notifications │ Profile ▼                         │
+├──────────────────────────────────────────────────────────────────────────────┤
+│ Orders ▸ Create Order                                                       │
+├───────────────────────────────┬───────────────────────────────────────────────┤
+│ Warehouse Picker (Column L)   │ Cost & Transaction Summary (Column R)        │
+│ ┌───────────────────────────┐ │ ┌──────────────────────────────────────────┐ │
+│ │ Search ▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒ │ │ │ Order Preview                             │ │
+│ │ Region ▼  Capacity ▼      │ │ │ • Seller Wallet: 0x1234…abcd             │ │
+│ │───────────────────────────│ │ │ • Warehouse: Shenzhen Bonded Hub         │ │
+│ │ ▣ Warehouse Card          │ │ │ • Items: 12 Pallets                      │ │
+│ │   Score ★★★★☆             │ │ │ • Insurance Plan: Standard (2.5%)        │ │
+│ │   SLA 24h | Staking 5000  │ │ │ • Logistics ID: —                        │ │
+│ │───────────────────────────│ │ │──────────────────────────────────────────│ │
+│ │ ▫ Warehouse Card          │ │ │ Fee Breakdown                             │ │
+│ │   Score ★★★☆☆             │ │ │  Base Storage      1,200 APT             │ │
+│ │   SLA 48h | Staking 3200  │ │ │  Insurance (2.5%)     30 APT             │ │
+│ │                           │ │ │  Platform Fee          5 APT             │ │
+│ │ [View Details] [Select]   │ │ │──────────────────────────────────────────│ │
+│ └───────────────────────────┘ │ │ Total Due          1,235 APT ≈ $1,560     │ │
+│ ┌───────────────────────────┐ │ │──────────────────────────────────────────│ │
+│ │ Order Form                │ │ │ Gas Estimate                              │ │
+│ │ • Outbound Batch ▒▒▒▒▒▒▒ ▒│ │ │  Used: 12,345  Unit: 100 Octa            │ │
+│ │ • Upload Document  [ ⧉ ] │ │ │  Max: 20,000   Fee: 0.024 APT             │ │
+│ │ • Insurance Toggle [✓]   │ │ │  USD ≈ $0.03                              │ │
+│ │ • Notes textarea ▒▒▒▒▒▒▒ │ │ │──────────────────────────────────────────│ │
+│ │───────────────────────────│ │ │ CTA Buttons                                │ │
+│ │ [Preview Fees] [Reset]    │ │ │ [Simulate Transaction] [Submit & Sign]   │ │
+│ └───────────────────────────┘ │ └──────────────────────────────────────────┘ │
+└───────────────────────────────┴───────────────────────────────────────────────┘
+```
+
+### Order Detail & Evidence Timeline (Story 2.1/2.4)
+```
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ Breadcrumb: Orders > Q1 Imports > ORDER-000045 │ Status: IN_STORAGE ████      │
+├───────────────────────────────┬───────────────────────────────────────────────┤
+│ Timeline & Actions (Column L) │ Evidence Vault / Hash Verification (Column R)│
+│ ┌───────────────────────────┐ │ ┌──────────────────────────────────────────┐ │
+│ │ ▣ ORDER_CREATED          │ │ │ Evidence Summary                           │ │
+│ │  2025-03-12 09:21 CST    │ │ │ ┌───────────────────────────────────────┐ │ │
+│ │  Actor: 0xSeller         │ │ │ │ Latest Hash                              │ │ │
+│ │  Fees: 1,235 APT         │ │ │ │ blake3: 7fa3…c9d2 ✓ matched            │ │ │
+│ │───────────────────────────│ │ │ └───────────────────────────────────────┘ │ │
+│ │ ▣ WAREHOUSE_IN           │ │ │ Uploads                                   │ │ │
+│ │  2025-03-13 14:10 CST    │ │ │ ▣ inbound_photo.jpg  12MB  ✓ verified    │ │ │
+│ │  Actor: 0xWarehouse      │ │ │ ▫ inbound_damage.mp4 110MB ⟳ verifying   │ │ │
+│ │  Media: 2 hashes         │ │ │ ▫ customs_manifest.pdf 180KB ⚠ mismatch  │ │ │
+│ │───────────────────────────│ │ │──────────────────────────────────────────│ │ │
+│ │ ▣ IN_STORAGE             │ │ │ Hash Tools                                 │ │ │
+│ │  2025-03-14 08:05 CST    │ │ │ • Drag & Drop file ▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒ │ │ │
+│ │  Actor: 0xWarehouse      │ │ │ • Paste hash value ▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒  │ │ │
+│ │  Storage Code: A3-19     │ │ │ [Verify Against Chain]                    │ │ │
+│ │───────────────────────────│ │ │──────────────────────────────────────────│ │ │
+│ │ ▫ WAREHOUSE_OUT (pending)│ │ │ Related Modules                            │ │ │
+│ │  Awaiting claim review   │ │ │ • Claims (0 open)                         │ │ │
+│ │  [Request Release]       │ │ │ • Staking weight: 1.42                    │ │ │
+│ └───────────────────────────┘ │ └──────────────────────────────────────────┘ │ │
+└───────────────────────────────┴───────────────────────────────────────────────┘
+```
+
+### Warehouse Inbound Task (Story 2.3)
+```
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ Warehouse Portal ▸ Task Queue ▸ ORDER-000045 Inbound                         │
+├───────────────────────────────┬───────────────────────────────────────────────┤
+│ Task Checklist (Column L)     │ Inbound Capture Workspace (Column R)         │
+│ ┌───────────────────────────┐ │ ┌──────────────────────────────────────────┐ │
+│ │ Status: Awaiting Arrival  │ │ │ Camera Upload / File Drop Zone           │ │
+│ │ Deadline: 02:00 remaining │ │ │ ┌───────────────┬───────────────┐       │ │
+│ │ Steps                     │ │ │ │ Drag file here│  + Use Camera │       │ │
+│ │ [✓] Confirm Dock          │ │ │ └───────────────┴───────────────┘       │ │
+│ │ [ ] Scan Logistics ID     │ │ │ Preview                                   │ │
+│ │ [ ] Capture Photos        │ │ │ ▣ IMG_2301.jpg  ✅ hash ready             │ │
+│ │ [ ] Record Notes          │ │ │ ▫ VID_4430.mp4  ⟳ hashing…               │ │
+│ │───────────────────────────│ │ │──────────────────────────────────────────│ │ │
+│ │ Order Snapshot            │ │ │ Metadata Form                             │ │ │
+│ │ • Seller: 0x123…          │ │ │ Logistics ID      ▒▒▒▒▒▒▒▒▒▒             │ │ │
+│ │ • Insurance: Standard     │ │ │ Temperature Log   ▒▒▒▒▒▒▒▒▒▒             │ │ │
+│ │ • Previous Claims: None   │ │ │ Notes (markdown)  ▒▒▒▒▒▒▒▒▒▒             │ │ │
+│ └───────────────────────────┘ │ │──────────────────────────────────────────│ │ │
+│                               │ │ Action Bar                                 │ │
+│                               │ │ [Save Draft] [Hash & Review] [Submit TX]  │ │
+│                               │ └──────────────────────────────────────────┘ │
+└───────────────────────────────┴───────────────────────────────────────────────┘
+```
+
+### Warehouse Outbound Fulfillment (Story 2.4)
+```
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ Warehouse Portal ▸ Task Queue ▸ ORDER-000045 Outbound                        │
+├───────────────────────────────┬───────────────────────────────────────────────┤
+│ Release Preconditions         │ Outbound Confirmation Panel                  │
+│ ┌───────────────────────────┐ │ ┌──────────────────────────────────────────┐ │
+│ │ Claims Status             │ │ │ Shipment Details                          │ │
+│ │ • Pending Claims: 0       │ │ │ • Outbound Carrier  ▒▒▒▒▒▒▒▒▒▒           │ │
+│ │ • Insurance OK: ✓         │ │ │ • Tracking Number  ▒▒▒▒▒▒▒▒▒▒           │ │
+│ │ • Staking Weight ≥ 1.0 ✓  │ │ │ • Customs Doc      [Upload ⧉]           │ │
+│ │───────────────────────────│ │ │──────────────────────────────────────────│ │ │
+│ │ Timeline Summary          │ │ │ Outbound Media                              │ │
+│ │ • WAREHOUSE_IN  ✓        │ │ │ ▣ photo_out_01.jpg  ✓ matched             │ │
+│ │ • IN_STORAGE    ✓        │ │ │ ▫ video_loading.mp4  ⟳ hash pending       │ │
+│ │ • WAREHOUSE_OUT  ◻       │ │ │──────────────────────────────────────────│ │ │
+│ └───────────────────────────┘ │ │ Checklist + Confirmation                   │ │
+│                               │ │ [ ] Seal integrity verified                │ │ │
+│                               │ │ [ ] Temperature log attached               │ │ │
+│                               │ │ [ ] Driver ID confirmed                    │ │ │
+│                               │ │──────────────────────────────────────────│ │ │
+│                               │ │ Action Buttons                             │ │
+│                               │ │ [Simulate Gas] [Submit & Sign]            │ │
+│                               │ │ [Flag Issue]                               │ │
+│                               │ └──────────────────────────────────────────┘ │
+└───────────────────────────────┴───────────────────────────────────────────────┘
+```
 
 ## Performance Considerations
 ### Performance Goals

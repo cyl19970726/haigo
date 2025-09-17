@@ -2,3 +2,5 @@
 .bmad-core/
 .bmad-*/
 node_modules
+.next/
+.pnpm-store/

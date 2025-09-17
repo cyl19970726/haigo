@@ -11,7 +11,7 @@
     "moduleResolution": "node",
     "types": ["node"],
     "paths": {
-      "@shared/*": ["../../packages/shared/src/*"]
+      "@shared/*": ["shared/*"]
     }
   },
   "include": ["src"],

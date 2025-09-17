@@ -1,0 +1,51 @@
+table:
+  schema: public
+  name: accounts
+array_relationships:
+  - name: orders_by_creator
+    using:
+      manual_configuration:
+        remote_table:
+          schema: public
+          name: orders
+        column_mapping:
+          account_address: creator_address
+  - name: orders_by_warehouse
+    using:
+      manual_configuration:
+        remote_table:
+          schema: public
+          name: orders
+        column_mapping:
+          account_address: warehouse_address
+select_permissions:
+  - role: anonymous
+    permission:
+      columns:
+        - account_address
+        - role
+        - profile_hash_algo
+        - profile_hash_value
+        - profile_uri
+        - txn_version
+        - event_index
+        - chain_timestamp
+        - created_at
+        - updated_at
+      filter: {}
+      allow_aggregations: false
+  - role: operations
+    permission:
+      columns:
+        - account_address
+        - role
+        - profile_hash_algo
+        - profile_hash_value
+        - profile_uri
+        - txn_version
+        - event_index
+        - chain_timestamp
+        - created_at
+        - updated_at
+      filter: {}
+      allow_aggregations: true
