@@ -1,0 +1,14 @@
+story: 2.1-order-lifecycle-move-module
+status: PASS
+reviewer: Quinn
+review_date: 2025-09-18
+notes:
+  - Lifecycle safeguards meet spec after restricting insurance toggle.
+  - create_order now enforces staking credit guard before fund transfer.
+  - Added negative-path Move tests for roles and state transitions.
+recommendations:
+  - Plan integration with real staking/insurance modules once available.
+validations:
+  tests:
+    - command: aptos move test --skip-fetch-latest-git-deps
+      result: pass
