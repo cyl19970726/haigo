@@ -1,0 +1,53 @@
+schema: 1
+story: '2.3'
+story_title: 'Inbound Media Upload & Hash Verification'
+gate: CONCERNS
+status_reason: 'Manual re-check increments verificationAttempts twice, so telemetry is inaccurate.'
+reviewer: 'Quinn (Test Architect)'
+updated: '2025-09-20T00:00:00Z'
+
+quality_score: 90
+expires: '2025-10-04T00:00:00Z'
+
+top_issues:
+  - severity: medium
+    summary: 'Manual media re-check increments the attempt counter twice.'
+    details: 'updateVerificationStatus runs with increment=true both when starting and finishing a re-check, doubling the telemetry count.'
+    refs:
+      - apps/web/features/orders/inbound/OrderCheckInView.tsx:381
+      - apps/web/features/orders/inbound/OrderCheckInView.tsx:401
+    suggested_owner: dev
+
+waiver:
+  active: false
+
+recommendations:
+  immediate:
+    - action: 'Pass increment=false in one of the re-check updateVerificationStatus calls so attempts count once.'
+      refs:
+        - apps/web/features/orders/inbound/OrderCheckInView.tsx:381
+  future:
+    - action: 'Add a dedicated test that exercises manual re-check telemetry and throttled retries.'
+      refs:
+        - apps/web/features/orders/inbound/OrderCheckInView.test.tsx
+
+evidence:
+  tests_reviewed: 14
+  risks_identified: 1
+  trace:
+    ac_covered: [1, 2, 3]
+    ac_gaps: [4]
+
+nfr_validation:
+  security:
+    status: PASS
+    notes: 'Wallet guard and signer validation unchanged from earlier stories.'
+  performance:
+    status: PASS
+    notes: 'Hashing remains synchronous; no regression beyond expected large file cost.'
+  reliability:
+    status: CONCERNS
+    notes: 'Telemetry double counts re-check attempts, reducing trust in verification metrics.'
+  maintainability:
+    status: PASS
+    notes: 'Hooks remain modular; issue isolated to counter increment logic.'

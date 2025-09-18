@@ -22,8 +22,10 @@ import {
   OCTA_PER_APT
 } from '@shared/dto/orders';
 import { fetchOrderDetail, fetchOrderSummaries, fetchWarehouses } from '../../../lib/api/orders';
+import { hexToBytes } from '../../../lib/crypto/hex';
 import { NetworkGuard } from '../../../lib/wallet/network-guard';
 import { useWalletContext } from '../../../lib/wallet/context';
+import { deriveInboundLogistics } from '../utils';
 
 const STEPS = ['warehouse', 'pricing', 'review'] as const;
 type WizardStep = (typeof STEPS)[number];
@@ -106,24 +108,6 @@ const persistForm = (state?: OrderFormState | null) => {
   } catch (error) {
     console.warn('[HaiGo] failed to cache order form', error);
   }
-};
-
-const deriveInboundLogistics = ({ carrier, trackingNumber }: LogisticsInfo): string | null => {
-  const carrierLabel = carrier?.trim();
-  const tracking = trackingNumber?.trim();
-  if (!carrierLabel && !tracking) return null;
-  if (!carrierLabel) return tracking ?? null;
-  if (!tracking) return carrierLabel;
-  return `${carrierLabel}#${tracking}`;
-};
-
-const hexToBytes = (value: string): Uint8Array => {
-  const normalized = value.startsWith('0x') ? value.slice(2) : value;
-  if (normalized.length % 2 !== 0 || !/^[0-9a-fA-F]+$/.test(normalized)) {
-    throw new Error('Media hash must be a hex string.');
-  }
-  const pairs = normalized.match(/.{1,2}/g) ?? [];
-  return new Uint8Array(pairs.map((pair) => Number.parseInt(pair, 16)));
 };
 
 export function CreateOrderView() {

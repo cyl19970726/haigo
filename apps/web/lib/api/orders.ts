@@ -1,38 +1,7 @@
 'use client';
 
 import type { OrderDetailDto, OrderSummaryDto, WarehouseSummary } from '@shared/dto/orders';
-
-interface ApiMeta {
-  requestId?: string;
-  timestamp?: string;
-}
-
-interface ApiEnvelope<T> {
-  data: T;
-  meta?: ApiMeta;
-}
-
-const BFF_BASE = (process.env.NEXT_PUBLIC_BFF_URL || '').replace(/\/$/, '');
-
-const buildUrl = (path: string) => {
-  if (!BFF_BASE) return path;
-  return `${BFF_BASE}${path}`;
-};
-
-const parseJson = async <T>(response: Response): Promise<T> => {
-  const bodyText = await response.text();
-  if (!bodyText) {
-    return {} as T;
-  }
-  return JSON.parse(bodyText) as T;
-};
-
-const extractData = <T>(payload: ApiEnvelope<T> | T): T => {
-  if (payload && typeof payload === 'object' && 'data' in payload) {
-    return (payload as ApiEnvelope<T>).data;
-  }
-  return payload as T;
-};
+import { type ApiEnvelope, buildUrl, extractData, parseJson } from './client';
 
 export async function fetchWarehouses(): Promise<WarehouseSummary[]> {
   const response = await fetch(buildUrl('/api/warehouses'), {

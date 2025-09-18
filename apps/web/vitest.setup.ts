@@ -22,3 +22,10 @@ Object.assign(navigator, {
     writeText: vi.fn()
   }
 });
+
+if (!('createObjectURL' in URL)) {
+  Object.assign(URL, {
+    createObjectURL: vi.fn(() => 'blob:mock-url'),
+    revokeObjectURL: vi.fn()
+  });
+}
