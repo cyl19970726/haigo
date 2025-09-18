@@ -200,6 +200,364 @@ main {
   padding: 0;
 }
 
+/* -------------------------------------------------- */
+/* Order Creation                                      */
+/* -------------------------------------------------- */
+
+.order-create-shell {
+  max-width: 1040px;
+  margin: 0 auto;
+  padding: 48px 24px 72px;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+}
+
+.order-create__header {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.order-create__title {
+  font-size: 2rem;
+  margin: 0;
+}
+
+.order-create__subtitle {
+  font-size: 1rem;
+  margin: 0;
+  color: #475569;
+}
+
+.order-create__steps {
+  display: flex;
+  gap: 16px;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.order-create__steps li {
+  padding: 6px 14px;
+  border-radius: 9999px;
+  background: #e2e8f0;
+  color: #475569;
+  text-transform: capitalize;
+}
+
+.order-create__steps li.active {
+  background: #2563eb;
+  color: #ffffff;
+}
+
+.order-create__step-label {
+  white-space: nowrap;
+}
+
+.warehouse-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.warehouse-grid {
+  display: grid;
+  gap: 24px;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+}
+
+.warehouse-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.04);
+}
+
+.warehouse-card__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.warehouse-card__badge {
+  padding: 4px 10px;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  background: #e2e8f0;
+  color: #0f172a;
+}
+
+.warehouse-card__badge--available {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.warehouse-card__badge--limited {
+  background: #fef08a;
+  color: #92400e;
+}
+
+.warehouse-card__badge--maintenance {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.warehouse-card__metrics {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  font-size: 0.9rem;
+}
+
+.warehouse-card__metrics dt {
+  font-weight: 600;
+  color: #475569;
+}
+
+.warehouse-card__metrics dd {
+  margin: 0;
+  color: #0f172a;
+}
+
+.warehouse-card__media {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-size: 0.75rem;
+  color: #2563eb;
+}
+
+.warehouse-card__select {
+  align-self: flex-start;
+  border: none;
+  background: #2563eb;
+  color: #ffffff;
+  border-radius: 10px;
+  padding: 10px 16px;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.warehouse-card__select:hover {
+  background: #1d4ed8;
+}
+
+.order-form {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.05);
+}
+
+.order-form fieldset {
+  border: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 16px;
+}
+
+.order-form__field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.9rem;
+}
+
+.order-form__field input,
+.order-form__field select,
+.order-form__field textarea {
+  border: 1px solid #cbd5f5;
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 1rem;
+}
+
+.order-form__actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+}
+
+.order-form__button {
+  border: 1px solid #2563eb;
+  background: #2563eb;
+  color: #ffffff;
+  border-radius: 10px;
+  padding: 10px 16px;
+  font-size: 0.95rem;
+  cursor: pointer;
+}
+
+.order-form__button:hover {
+  background: #1d4ed8;
+}
+
+.order-form__button--secondary {
+  background: #ffffff;
+  color: #2563eb;
+}
+
+.order-form__button--ghost {
+  background: transparent;
+  color: #2563eb;
+}
+
+.order-review {
+  display: grid;
+  gap: 24px;
+}
+
+.order-review__panel {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.04);
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.order-review__panel--actions {
+  gap: 16px;
+}
+
+.order-review__header h2 {
+  margin: 0;
+  font-size: 1.5rem;
+}
+
+.order-review__summary {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  font-size: 0.9rem;
+}
+
+.order-review__summary dt {
+  font-weight: 600;
+  color: #475569;
+}
+
+.order-review__summary dd {
+  margin: 0;
+}
+
+.order-review__table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.order-review__table caption {
+  text-align: left;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.order-review__table th,
+.order-review__table td {
+  text-align: left;
+  padding: 8px 0;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.order-review__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.order-review__status {
+  padding: 14px 16px;
+  border-radius: 12px;
+  font-size: 0.95rem;
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.order-review__status--failed {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.order-review__status--success {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.order-review__estimates ul {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.order-review__hash {
+  font-size: 0.85rem;
+  color: #475569;
+  word-break: break-all;
+}
+
+.order-review__hint {
+  font-size: 0.85rem;
+  color: #475569;
+}
+
+.order-timeline {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.order-timeline__timestamp {
+  display: block;
+  font-size: 0.8rem;
+  color: #64748b;
+}
+
+.order-timeline__label {
+  font-weight: 600;
+}
+
+.order-create__error {
+  color: #b91c1c;
+  font-size: 0.9rem;
+}
+
+@media (max-width: 720px) {
+  .order-create-shell {
+    padding: 32px 16px 56px;
+  }
+
+  .warehouse-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .order-review {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .order-form__actions,
+  .order-review__actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+
 .register-form legend {
   font-weight: 600;
   margin-bottom: 8px;

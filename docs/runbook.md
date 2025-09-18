@@ -91,6 +91,7 @@ docker compose up -d postgres hasura bff
    - 钱包连接 → 注册（调用合约）
    - 创建订单 → 检查 BFF 时间线
    - 上传媒体 → 哈希校验提示
+   - 手动下单巡检：选择仓库 → 调整保险费率 → 运行 Gas 模拟 → 签名交易 → 跳转订单时间线并核对最新事件。
 
 ## 8. 测试策略
 - Move：`aptos move test`（覆盖注册、订单、状态机异常）。
