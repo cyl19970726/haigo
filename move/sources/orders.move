@@ -14,6 +14,7 @@ module haigo::orders {
 
     use haigo::mock_coin;
     use haigo::registry;
+    use haigo::staking;
 
     // Error codes for deterministic aborts across lifecycle operations
     const E_ALREADY_INITIALIZED: u64 = 1;
@@ -210,6 +211,7 @@ module haigo::orders {
         registry::assert_role(warehouse, registry::role_warehouse());
 
         let total = amount + insurance_fee + platform_fee;
+        staking::assert_min_credit(seller_addr, total);
         coin::transfer<CoinType>(seller, book.platform_account, total);
 
         let now = timestamp::now_seconds();
@@ -407,6 +409,7 @@ module haigo::orders {
     }
 
     // Allow integration modules (or tests) to toggle insurance claim blocks.
+    #[test_only]
     public fun set_insurance_block_for_test(order_id: u64, blocked: bool) acquires OrderBook {
         assert!(exists<OrderBook>(@haigo), error::not_found(E_NOT_INITIALIZED));
         let book = borrow_global_mut<OrderBook>(@haigo);
@@ -602,6 +605,8 @@ module haigo::orders {
 
         init_for_test(account, platform_addr, true);
 
+        staking::init_for_test(account);
+        staking::set_credit(account, seller_addr, 1_000_000);
         aptos_framework::coin::create_coin_conversion_map(aptos_framework);
         mock_coin::ensure_initialized(account);
         mock_coin::register(&seller);
@@ -667,6 +672,173 @@ module haigo::orders {
     }
 
     #[test(aptos_framework = @0x1, account = @haigo)]
+    #[expected_failure(abort_code = 0x50005, location = registry)]
+    public fun test_check_in_requires_warehouse_role(aptos_framework: &signer, account: &signer) acquires OrderBook {
+        timestamp::set_time_has_started_for_testing(aptos_framework);
+
+        let platform_addr = @0xcafe;
+        let platform = account::create_account_for_test(platform_addr);
+        let seller_addr = @0x1234;
+        let seller = account::create_account_for_test(seller_addr);
+        let warehouse_addr = @0x2345;
+        let warehouse = account::create_account_for_test(warehouse_addr);
+
+        registry::init_for_test(account);
+        registry::register_seller(&seller, registry::hash_algorithm_blake3(), string::utf8(b"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
+        registry::register_warehouse(&warehouse, registry::hash_algorithm_blake3(), string::utf8(b"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"));
+        registry::register_platform_operator(&platform, registry::hash_algorithm_blake3(), string::utf8(b"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"));
+
+        init_for_test(account, platform_addr, false);
+        staking::init_for_test(account);
+        staking::set_credit(account, seller_addr, 1_000);
+        aptos_framework::coin::create_coin_conversion_map(aptos_framework);
+        mock_coin::ensure_initialized(account);
+        mock_coin::register(&seller);
+        mock_coin::register(&platform);
+        mock_coin::mint(account, seller_addr, 100_000);
+
+        create_order<mock_coin::MockCoin>(
+            &seller,
+            warehouse_addr,
+            option::none(),
+            10,
+            0,
+            0,
+            option::none(),
+            option::none(),
+        );
+
+        // Seller (non-warehouse) attempts to check in
+        check_in(&seller, 1, string::utf8(b"BAD"), string::utf8(b"inbound"), make_hash(1));
+    }
+
+    #[test(aptos_framework = @0x1, account = @haigo)]
+    #[expected_failure(abort_code = 0x30004, location = Self)]
+    public fun test_set_in_storage_requires_order_flow(aptos_framework: &signer, account: &signer) acquires OrderBook {
+        timestamp::set_time_has_started_for_testing(aptos_framework);
+
+        let platform_addr = @0xdeed;
+        let platform = account::create_account_for_test(platform_addr);
+        let seller_addr = @0x3456;
+        let seller = account::create_account_for_test(seller_addr);
+        let warehouse_addr = @0x4567;
+        let warehouse = account::create_account_for_test(warehouse_addr);
+
+        registry::init_for_test(account);
+        registry::register_seller(&seller, registry::hash_algorithm_blake3(), string::utf8(b"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
+        registry::register_warehouse(&warehouse, registry::hash_algorithm_blake3(), string::utf8(b"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"));
+        registry::register_platform_operator(&platform, registry::hash_algorithm_blake3(), string::utf8(b"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"));
+
+        init_for_test(account, platform_addr, false);
+        staking::init_for_test(account);
+        staking::set_credit(account, seller_addr, 1_000);
+        aptos_framework::coin::create_coin_conversion_map(aptos_framework);
+        mock_coin::ensure_initialized(account);
+        mock_coin::register(&seller);
+        mock_coin::register(&platform);
+        mock_coin::mint(account, seller_addr, 100_000);
+
+        create_order<mock_coin::MockCoin>(
+            &seller,
+            warehouse_addr,
+            option::none(),
+            10,
+            0,
+            0,
+            option::none(),
+            option::none(),
+        );
+
+        // Attempt to skip check_in
+        set_in_storage(&warehouse, 1, string::utf8(b"storage"), make_hash(1));
+    }
+
+    #[test(aptos_framework = @0x1, account = @haigo)]
+    #[expected_failure(abort_code = 0x50009, location = Self)]
+    public fun test_check_out_requires_authorized_operator(aptos_framework: &signer, account: &signer) acquires OrderBook {
+        timestamp::set_time_has_started_for_testing(aptos_framework);
+
+        let platform_addr = @0xfade;
+        let platform = account::create_account_for_test(platform_addr);
+        let seller_addr = @0x5678;
+        let seller = account::create_account_for_test(seller_addr);
+        let warehouse_addr = @0x6789;
+        let warehouse = account::create_account_for_test(warehouse_addr);
+        let intruder_addr = @0x789a;
+        let intruder = account::create_account_for_test(intruder_addr);
+
+        registry::init_for_test(account);
+        registry::register_seller(&seller, registry::hash_algorithm_blake3(), string::utf8(b"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
+        registry::register_warehouse(&warehouse, registry::hash_algorithm_blake3(), string::utf8(b"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"));
+        registry::register_platform_operator(&platform, registry::hash_algorithm_blake3(), string::utf8(b"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"));
+
+        init_for_test(account, platform_addr, false);
+        staking::init_for_test(account);
+        staking::set_credit(account, seller_addr, 1_000);
+        aptos_framework::coin::create_coin_conversion_map(aptos_framework);
+        mock_coin::ensure_initialized(account);
+        mock_coin::register(&seller);
+        mock_coin::register(&platform);
+        mock_coin::register(&intruder);
+        mock_coin::mint(account, seller_addr, 100_000);
+
+        create_order<mock_coin::MockCoin>(
+            &seller,
+            warehouse_addr,
+            option::none(),
+            10,
+            0,
+            0,
+            option::none(),
+            option::none(),
+        );
+
+        check_in(&warehouse, 1, string::utf8(b"L1"), string::utf8(b"inbound"), make_hash(1));
+        set_in_storage(&warehouse, 1, string::utf8(b"storage"), make_hash(2));
+
+        check_out(&intruder, 1, string::utf8(b"L1-OUT"), string::utf8(b"outbound"), make_hash(3));
+    }
+
+    #[test(aptos_framework = @0x1, account = @haigo)]
+    #[expected_failure(abort_code = 0x30001, location = staking)]
+    public fun test_create_order_requires_credit(aptos_framework: &signer, account: &signer) acquires OrderBook {
+        timestamp::set_time_has_started_for_testing(aptos_framework);
+
+        let platform_addr = @0xbeef;
+        let platform = account::create_account_for_test(platform_addr);
+        let seller_addr = @0x777;
+        let seller = account::create_account_for_test(seller_addr);
+        let warehouse_addr = @0x888;
+        let warehouse = account::create_account_for_test(warehouse_addr);
+
+        registry::init_for_test(account);
+        registry::register_seller(&seller, registry::hash_algorithm_blake3(), string::utf8(b"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
+        registry::register_warehouse(&warehouse, registry::hash_algorithm_blake3(), string::utf8(b"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"));
+        registry::register_platform_operator(&platform, registry::hash_algorithm_blake3(), string::utf8(b"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"));
+
+        init_for_test(account, platform_addr, false);
+
+        staking::init_for_test(account);
+        staking::set_credit(account, seller_addr, 10);
+        aptos_framework::coin::create_coin_conversion_map(aptos_framework);
+        mock_coin::ensure_initialized(account);
+        mock_coin::register(&seller);
+        mock_coin::register(&platform);
+        mock_coin::mint(account, seller_addr, 100_000);
+
+        create_order<mock_coin::MockCoin>(
+            &seller,
+            warehouse_addr,
+            option::none(),
+            50,
+            25,
+            10,
+            option::none(),
+            option::none(),
+        );
+    }
+
+    #[test(aptos_framework = @0x1, account = @haigo)]
     #[expected_failure(abort_code = 0x10005, location = Self)]
     public fun test_invalid_hash_rejected(aptos_framework: &signer, account: &signer) acquires OrderBook {
         timestamp::set_time_has_started_for_testing(aptos_framework);
@@ -686,6 +858,8 @@ module haigo::orders {
 
         init_for_test(account, platform_addr, false);
 
+        staking::init_for_test(account);
+        staking::set_credit(account, seller_addr, 1_000);
         aptos_framework::coin::create_coin_conversion_map(aptos_framework);
         mock_coin::ensure_initialized(account);
         mock_coin::register(&seller);
@@ -734,6 +908,8 @@ module haigo::orders {
 
         init_for_test(account, platform_addr, false);
 
+        staking::init_for_test(account);
+        staking::set_credit(account, seller_addr, 1_000);
         aptos_framework::coin::create_coin_conversion_map(aptos_framework);
         mock_coin::ensure_initialized(account);
         mock_coin::register(&seller);
