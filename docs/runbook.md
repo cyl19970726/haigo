@@ -134,3 +134,4 @@ docker compose up -d postgres hasura bff
 - Hasura metadata 版本库位置。
 - OSS 迁移步骤（待定）。
 - 测试脚本自动化与 E2E 方案。
+- Order lifecycle 模块发布后，需在集成阶段更新 `packages/shared/src/config/aptos.ts` 与 BFF 环境变量；与 BFF/前端团队同步安排窗口。
