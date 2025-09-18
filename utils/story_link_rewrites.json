@@ -1,0 +1,154 @@
+[
+  {
+    "old": "docs/architecture/4-链下服务与数据流.md#41-bff--media-ingestor",
+    "new": "docs/architecture/4-链下服务与数据流.md#4-1-2-事件轮询-游标管理"
+  },
+  {
+    "old": "docs/architecture/4-链下服务与数据流.md#41-bff-media-ingestor",
+    "new": "docs/architecture/4-链下服务与数据流.md#4-1-2-事件轮询-游标管理"
+  },
+  {
+    "old": "docs/architecture/4-链下服务与数据流.md#42-数据模型定义",
+    "new": "docs/architecture/4-链下服务与数据流.md#4-2-数据模型-prisma-postgres"
+  },
+  {
+    "old": "docs/architecture/4-链下服务与数据流.md#43-媒体存储策略",
+    "new": "docs/architecture/4-链下服务与数据流.md#4-7-2-媒体存证与上传接口规划"
+  },
+  {
+    "old": "docs/architecture/4-链下服务与数据流.md#44-bff-api-接口规范",
+    "new": "docs/architecture/4-链下服务与数据流.md#4-3-rest-api-已实现"
+  },
+  {
+    "old": "docs/architecture/4-链下服务与数据流.md#45-hasura-graphql-摘要",
+    "new": "docs/architecture/4-链下服务与数据流.md#4-5-配置与环境变量"
+  },
+  {
+    "old": "docs/architecture/4-链下服务与数据流.md#46-核心接口与类设计",
+    "new": "docs/architecture/4-链下服务与数据流.md#4-4-核心模块"
+  },
+  {
+    "old": "docs/architecture/4-链下服务与数据流.md#471-事件数据流拓扑",
+    "new": "docs/architecture/4-链下服务与数据流.md#4-7-1-订单数据摄入规划"
+  },
+  {
+    "old": "docs/architecture/4-链下服务与数据流.md#472-数据模型拓展",
+    "new": "docs/architecture/4-链下服务与数据流.md#4-2-数据模型-prisma-postgres"
+  },
+  {
+    "old": "docs/architecture/4-链下服务与数据流.md#473-bff-模块设计",
+    "new": "docs/architecture/4-链下服务与数据流.md#4-4-核心模块"
+  },
+  {
+    "old": "docs/architecture/4-链下服务与数据流.md#474-api-规划",
+    "new": "docs/architecture/4-链下服务与数据流.md#4-3-rest-api-已实现"
+  },
+  {
+    "old": "docs/architecture/4-链下服务与数据流.md#475-媒体存证协同",
+    "new": "docs/architecture/4-链下服务与数据流.md#4-7-2-媒体存证与上传接口规划"
+  },
+  {
+    "old": "docs/architecture/4-链下服务与数据流.md#477-与-epic-2-story-对齐项",
+    "new": "docs/architecture/4-链下服务与数据流.md#4-7-1-订单数据摄入规划"
+  },
+  {
+    "old": "docs/architecture/4-链下服务与数据流.md#478-前端后端数据契约扩展",
+    "new": "docs/architecture/4-链下服务与数据流.md#4-4-核心模块"
+  },
+  {
+    "old": "docs/stories/1.1.story.md#story-11-monorepo--cicd-foundations",
+    "new": "docs/stories/1.1.story.md#story-1-1-monorepo-ci-cd-foundations"
+  },
+  {
+    "old": "docs/stories/1.2.story.md#story-12-core-account-move-module",
+    "new": "docs/stories/1.2.story.md#story-1-2-core-account-move-module"
+  },
+  {
+    "old": "docs/architecture/3-链上合约设计.md#324-媒体存证字段与约束",
+    "new": "docs/architecture/3-链上合约设计.md#3-2-4-媒体存证字段与约束"
+  },
+  {
+    "old": "docs/architecture/3-链上合约设计.md#325-费用与支付约束",
+    "new": "docs/architecture/3-链上合约设计.md#3-2-5-费用与支付约束"
+  },
+  {
+    "old": "docs/architecture/3-链上合约设计.md#326-story-对齐清单",
+    "new": "docs/architecture/3-链上合约设计.md#3-2-6-story-对齐清单"
+  },
+  {
+    "old": "docs/architecture/3-链上合约设计.md#327-测试矩阵epic-2",
+    "new": "docs/architecture/3-链上合约设计.md#3-2-7-测试覆盖"
+  },
+  {
+    "old": "docs/architecture/3-链上合约设计.md#328-与链下协作要点",
+    "new": "docs/architecture/3-链上合约设计.md#3-2-8-与链下协作要点"
+  },
+  {
+    "old": "docs/architecture/3-链上合约设计.md#34-insurance-模块",
+    "new": "docs/architecture/3-链上合约设计.md#3-4-规划模块-insurance-reputation"
+  },
+  {
+    "old": "docs/architecture/3-链上合约设计.md#registry-模块状态结构",
+    "new": "docs/architecture/3-链上合约设计.md#状态结构"
+  },
+  {
+    "old": "docs/prd/2-需求.md#22-非功能性需求nfr",
+    "new": "docs/prd/2-需求.md#2-2-非功能性需求-nfr"
+  },
+  {
+    "old": "docs/runbook.md#6-部署与环境",
+    "new": "docs/runbook.md#6-hasura-设置"
+  },
+  {
+    "old": "docs/epic/epic-1-infrastructure-on-chain-registration-基础设施与链上注册.md#story-13-frontend-wallet-connection-identity-selection-前端钱包连接与身份选择",
+    "new": "docs/epic/epic-1-infrastructure-on-chain-registration-基础设施与链上注册.md#story-1-3-frontend-wallet-connection-identity-selection-前端钱包连接与身份选择"
+  },
+  {
+    "old": "docs/front-end-spec.md#32-关键交互范式",
+    "new": "docs/front-end-spec.md#user-flows"
+  },
+  {
+    "old": "docs/front-end-spec.md#component-library--design-system",
+    "new": "docs/front-end-spec.md#component-library-design-system"
+  },
+  {
+    "old": "packages/shared/src/dto/registry.ts#L49-L59",
+    "new": "packages/shared/src/dto/registry.ts"
+  },
+  {
+    "old": "docs/epic/epic-2-order-lifecycle-media-attestation-订单全生命周期与媒体存证.md#story-21-order-lifecycle-move-module",
+    "new": "docs/epic/epic-2-order-lifecycle-media-attestation-订单全生命周期与媒体存证.md#story-2-1-order-lifecycle-move-module-订单生命周期-move-模块"
+  },
+  {
+    "old": "docs/architecture/4-链下服务与数据流.md#4-2-数据模型prisma-postgres",
+    "new": "docs/architecture/4-链下服务与数据流.md#4-2-数据模型-prisma-postgres"
+  },
+  {
+    "old": "docs/architecture/4-链下服务与数据流.md#4-3-rest-api已实现",
+    "new": "docs/architecture/4-链下服务与数据流.md#4-3-rest-api-已实现"
+  },
+  {
+    "old": "docs/architecture/4-链下服务与数据流.md#4-7-1-订单数据摄入规划",
+    "new": "docs/architecture/4-链下服务与数据流.md#4-7-1-订单数据摄入规划"
+  },
+  {
+    "old": "docs/architecture/3-链上合约设计.md#3-4-规划模块（insurance-reputation）",
+    "new": "docs/architecture/3-链上合约设计.md#3-4-规划模块-insurance-reputation"
+  },
+  {
+    "old": "docs/architecture/4-链下服务与数据流.md#4-7-1-订单数据摄入规划",
+    "new": "docs/architecture/4-链下服务与数据流.md#4-7-1-订单数据摄入-规划"
+  },
+  {
+    "old": "docs/architecture/4-链下服务与数据流.md#4-7-2-媒体存证与上传接口规划",
+    "new": "docs/architecture/4-链下服务与数据流.md#4-7-2-媒体存证与上传接口-规划"
+  },
+  {
+    "old": "docs/architecture/3-链上合约设计.md#状态机流程]",
+    "new": "docs/architecture/3-链上合约设计.md#状态机流程与守卫]"
+  },
+  {
+    "old": "docs/architecture/3-链上合约设计.md#状态机流程与守卫与守卫",
+    "new": "docs/architecture/3-链上合约设计.md#状态机流程与守卫"
+  }
+]
