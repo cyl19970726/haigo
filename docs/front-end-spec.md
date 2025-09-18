@@ -25,7 +25,30 @@ This document defines the user experience goals, information architecture, user 
 ### Change Log
 | Date | Version | Description | Author |
 | --- | --- | --- | --- |
+| 2025-09-18 | v0.2 | Epic 1 文档同步：注册流程、API 现状更新 | Winston (Architect)
 | 2025-09-17 | v0.1 | 初稿：完成 UX 目标、IA、核心流程与设计规范 | Sally (UX)
+
+## Epic 1 Context & Alignment
+**Scope Snapshot:** Epic 1 覆盖故事 1.1–1.4，提供注册基线能力（Move 合约、BFF、前端钱包与 CI/CD）。
+
+### Delivered Stories
+- **Story 1.1 – Monorepo & CI/CD Foundations：** `pnpm-workspace.yaml`、通用脚本 (`package.json` / `scripts/`)、GitHub Actions 流水线确保 Move/后端/前端均执行 lint+test。
+- **Story 1.2 – Core Account Move Module：** `move/sources/registry.move` 提供角色注册、哈希校验、事件发射与单元测试。
+- **Story 1.3 – Frontend Wallet Connection & Identity Selection：** `apps/web/features/registration/RegisterView.tsx`、`lib/wallet/` 管理钱包上下文、哈希计算、会话缓存、Gas 模拟与交易状态。
+- **Story 1.4 – Metadata Indexing & Record Verification API：** `apps/bff/src/modules/accounts` 聚合 Indexer 事件、写入 Prisma `Account` 表并暴露查询/校验 REST API。
+
+### Key Artefacts
+- `apps/web/features/registration/RegisterView.tsx`
+- `apps/web/lib/wallet/context.tsx`、`apps/web/lib/wallet/network-guard.tsx`
+- `apps/web/lib/crypto/blake3.ts`、`apps/web/lib/api/registration.ts`
+- `apps/bff/src/modules/accounts/*.ts`、`apps/bff/prisma/schema.prisma`
+- `move/sources/registry.move`、`move/sources/orders.move` 及关联单元测试
+
+### Known Gaps / TODO
+- `/api/media/uploads` 尚未在 BFF 中实现；前端会提示上传失败并保留本地缓存，完全闭环需待后端交付。
+- 200MB 文档的 BLAKE3 哈希仍在主线程执行；`docs/stories/1.3.story.md` 的改进项要求后续使用 Web Worker。
+- QA 指出缺少端到端与无障碍自动化测试，详见 `docs/stories/1.3.story.md#qa-results`。
+- 订单、理赔等模块仍属未来迭代（Epic 2+）；下文以“Planned”标记尚未交付的流程。
 
 ## Information Architecture (IA)
 ### Site Map / Screen Inventory
@@ -71,7 +94,40 @@ graph TD
 **Breadcrumb Strategy:** Module → Sub-area → Record（示例：`Orders > 2025-Q1 Imports > ORDER-12345`），并提供快速返回状态机总览的链接。
 
 ## User Flows
+### 身份注册（Epic 1 Story 1.3）
+**Status:** Delivered (Epic 1).
+
+**User Goal:** 商家或仓主通过钱包完成身份注册并缓存链下档案哈希，实现链上/链下一致。
+
+**Entry Points:** 连接钱包后访问 `/register`（`apps/web/app/(auth)/register/page.tsx`），或从 Dashboard CTA 进入。
+
+**Success Criteria:**
+- 钱包网络与 `NEXT_PUBLIC_APTOS_NETWORK` 匹配并展示连接状态；
+- 上传文档通过类型/体积校验，`hashFileBlake3` 生成 64 字符 BLAKE3 哈希；
+- `uploadIdentityDocument` 成功返回（或在 BFF 缺席时提示错误并保留本地缓存）；
+- Gas 模拟展示估算费用（APT + `NEXT_PUBLIC_APT_USD_RATE`），交易调用 `register_seller` / `register_warehouse` 并在区块确认后显示 Explorer 链接；
+- 刷新 `GET /api/accounts/:address` 展示注册结果与档案哈希。
+
+**Flow Summary:**
+1. `useWalletContext` 初始化钱包状态 → `NetworkGuard` 校验网络，提供切换提示；
+2. 拖拽或选择文档 → 校验 MIME/大小 → `hashFileBlake3` 计算哈希并回显元信息；
+3. 调用 `uploadIdentityDocument`（若 BFF 未实现则显示错误、允许稍后重试），成功时写入 `sessionStorage` 缓存；
+4. 构建交易（`aptos.transaction.build.simple`）→ `simulateTransaction` 估算 gas → `signAndSubmitTransaction`；
+5. 轮询交易状态，展示提交→等待→成功的进度，并提供区块浏览器链接与复制哈希按钮。
+
+**Edge Cases & Error Handling:**
+- 网络不匹配时 `NetworkGuard` 渲染 fallback 并禁用表单，提供“Retry network check”。
+- BFF 返回错误或缺失 `/api/media/uploads`：提示“Failed to upload documentation”，保留文件与哈希以便稍后重试。
+- 哈希不一致：比较客户端与返回哈希，不一致则中断流程并提示错误。
+- 已注册用户：`fetchAccountProfile` 返回值后禁用提交并展示注册信息。
+
+**Implementation Notes:**
+- 缓存键 `haigo:registration:{address}` 使用 `sessionStorage` 存储临时文档与元数据。
+- Gas 估算使用钱包公开密钥模拟，失败时展示错误并保持原状态。
+- 交易入口函数由 `APTOS_MODULE_ADDRESS::registry::*` 常量驱动（来源 `packages/shared/src/config/aptos.ts`）。
+
 ### 商家创建并支付订单
+**Status:** Planned (Epic 2).
 **User Goal:** 商家完成仓库选择并一次性支付仓储费与保险费，获取链上记录。
 
 **Entry Points:** Dashboard CTA “创建订单”、仓库详情页“选择此仓库”、运营发起的补单链接。
@@ -100,6 +156,7 @@ flowchart TD
 **Notes:** 在费用确认步骤提前展示 Gas 预估；签名成功后提供区块浏览器链接与“复制哈希”操作。
 
 ### 仓主处理入库与出库
+**Status:** Planned (Epic 2).
 **User Goal:** 仓主按状态机要求提交媒体证据，使订单顺利流转。
 
 **Entry Points:** 仓主任务队列、移动端推送通知、订单详情页状态提醒。
@@ -129,6 +186,7 @@ flowchart TD
 **Notes:** 移动端提供二维码/条码扫描快捷入口，并在提交前提示“将触发链上费用”。
 
 ### 理赔申请与审批
+**Status:** Planned (Epic 3).
 **User Goal:** 商家或平台提交理赔并跟踪审批结果。
 
 **Entry Points:** 订单时间线异常节点、Alert Center、客服工单跳转。
@@ -247,6 +305,22 @@ flowchart TD
 **States:** 编辑模式、只读（历史）、锁定（其他审核员操作中）。
 
 **Usage Guidelines:** 采用侧边抽屉，保留上下文列表。
+
+## Environment & Integration
+### Required Frontend Environment Variables
+| Variable | Example | Purpose |
+| --- | --- | --- |
+| `NEXT_PUBLIC_APTOS_NETWORK` | `testnet` | `NetworkGuard` 期望的钱包网络，用于阻止跨环境提交 |
+| `NEXT_PUBLIC_BFF_URL` | `http://localhost:3100` | 可选，当前端需代理到 NestJS BFF 时作为 API 前缀 |
+| `NEXT_PUBLIC_APT_USD_RATE` | `9.87` | Gas 模拟中显示的 APT→USD 估算（缺省为 0 表示未知） |
+
+### Active REST Contracts
+- `GET /api/accounts/:address` → 返回账户角色、档案哈希、注册时间、订单计数；由 `apps/bff/src/modules/accounts/accounts.controller.ts` 提供。
+- `POST /api/accounts/:address/verify-hash` → 内存存储上传文件并比较 BLAKE3 哈希，最大 15MB。
+
+### Pending Integrations
+- `POST /api/media/uploads` 尚在规划中（`docs/architecture/4-链下服务与数据流.md`），当前前端调用会提示错误并依赖本地缓存。
+- 订单与理赔相关 API、Hasura 聚合在 Epic 2+ 引入；UI 仍以占位符描述。
 
 ## Branding & Style Guide
 ### Visual Identity

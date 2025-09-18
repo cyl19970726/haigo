@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState, type ChangeEvent } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ChangeEvent, type FormEvent } from 'react';
 import {
   ORDER_DEFAULTS,
   ORDER_EVENT_TYPES,
@@ -147,6 +147,8 @@ export function CreateOrderView() {
   const [orderDetail, setOrderDetail] = useState<OrderDetailDto | null>(null);
   const [orderList, setOrderList] = useState<OrderSummaryDto[]>([]);
 
+  const resolvedRecordUid = orderDetail?.recordUid ?? optimisticOrder?.recordUid;
+
   const selectedWarehouse = useMemo(() => {
     if (!formState.warehouseId) return undefined;
     return warehouses.find((item) => item.id === formState.warehouseId);
@@ -235,7 +237,10 @@ export function CreateOrderView() {
     },
     [clearTransientState, validateStep]
   );
-  const buildFunctionAddress = useMemo(() => `${ORDERS_MODULE_ADDRESS}::${ORDERS_MODULE_NAME}::create_order`, []);
+  const buildFunctionAddress = useMemo(
+    () => `${ORDERS_MODULE_ADDRESS}::${ORDERS_MODULE_NAME}::create_order` as `${string}::${string}::${string}`,
+    []
+  );
 
   const buildTransaction = useCallback(async () => {
     if (!accountAddress) {
@@ -370,7 +375,12 @@ export function CreateOrderView() {
         const txnHash =
           typeof result === 'string'
             ? result
-            : result?.hash || result?.transactionHash || (result as any)?.txnHash || (result as any)?.result?.hash;
+            : result?.hash ??
+              (typeof (result as any)?.transactionHash === 'string'
+                ? (result as any).transactionHash
+                : undefined) ??
+              (typeof (result as any)?.txnHash === 'string' ? (result as any).txnHash : undefined) ??
+              (typeof (result as any)?.result?.hash === 'string' ? (result as any).result.hash : undefined);
         if (!txnHash) {
           throw new Error('Wallet did not return a transaction hash.');
         }
@@ -661,56 +671,64 @@ export function CreateOrderView() {
           </div>
 
           <div className="order-review__panel order-review__panel--actions">
-            <NetworkGuard status={status} expectedNetwork={networkStatus.expected} actualNetwork={networkStatus.actual} />
-            <div className="order-review__actions">
-              <button type="button" className="order-form__button order-form__button--secondary" onClick={() => goToStep('pricing')}>
-                Back to fees
-              </button>
-              <button type="button" className="order-form__button order-form__button--ghost" onClick={simulateOrder}>
-                Estimate gas
-              </button>
-              <button type="button" className="order-form__button" onClick={submitOrder}>
-                Sign & submit
-              </button>
-            </div>
+            <NetworkGuard>
+              <>
+                <div className="order-review__actions">
+                  <button type="button" className="order-form__button order-form__button--secondary" onClick={() => goToStep('pricing')}>
+                    Back to fees
+                  </button>
+                  <button type="button" className="order-form__button order-form__button--ghost" onClick={simulateOrder}>
+                    Estimate gas
+                  </button>
+                  <button type="button" className="order-form__button" onClick={submitOrder}>
+                    Sign & submit
+                  </button>
+                </div>
 
-            {simulationState.status === 'loading' && <p>Simulating transaction…</p>}
-            {simulationState.status === 'error' && <p className="order-create__error">{simulationState.message}</p>}
-            {simulationState.status === 'success' && (
-              <div className="order-review__estimates">
-                <h3>Gas estimate</h3>
-                <ul>
-                  <li>Gas used: {simulationState.gasUsed}</li>
-                  <li>Gas unit price: {simulationState.gasUnitPrice}</li>
-                  <li>Estimated fee: {simulationState.estimatedFee.toFixed(6)} APT</li>
-                </ul>
-              </div>
-            )}
+                {simulationState.status === 'loading' && <p>Simulating transaction…</p>}
+                {simulationState.status === 'error' && <p className="order-create__error">{simulationState.message}</p>}
+                {simulationState.status === 'success' && (
+                  <div className="order-review__estimates">
+                    <h3>Gas estimate</h3>
+                    <ul>
+                      <li>Gas used: {simulationState.gasUsed}</li>
+                      <li>Gas unit price: {simulationState.gasUnitPrice}</li>
+                      <li>Estimated fee: {simulationState.estimatedFee.toFixed(6)} APT</li>
+                    </ul>
+                  </div>
+                )}
 
-            {transactionState.stage !== 'idle' && (
-              <div className={`order-review__status order-review__status--${transactionState.stage}`}>
-                {transactionState.stage === 'submitting' && <p>Waiting for wallet signature…</p>}
-                {transactionState.stage === 'pending' && (
-                  <p>
-                    Transaction submitted.{' '}
-                    {transactionState.hash ? (
-                      <a href={transactionState.explorerUrl} target="_blank" rel="noreferrer">
-                        {transactionState.hash}
-                      </a>
-                    ) : null}
-                  </p>
+                {transactionState.stage !== 'idle' && (
+                  <div className={`order-review__status order-review__status--${transactionState.stage}`}>
+                    {transactionState.stage === 'submitting' && <p>Waiting for wallet signature…</p>}
+                    {transactionState.stage === 'pending' && (
+                      <p>
+                        Transaction submitted.{' '}
+                        {transactionState.hash ? (
+                          <a href={transactionState.explorerUrl} target="_blank" rel="noreferrer">
+                            {transactionState.hash}
+                          </a>
+                        ) : null}
+                      </p>
+                    )}
+                    {transactionState.stage === 'failed' && <p className="order-create__error">{transactionState.error}</p>}
+                    {transactionState.stage === 'success' && transactionState.hash && (
+                      <p>
+                        Order confirmed on-chain.
+                        {resolvedRecordUid ? (
+                          <span>
+                            {' '}Record UID: <code>{resolvedRecordUid}</code>.
+                          </span>
+                        ) : null}{' '}
+                        <a href={transactionState.explorerUrl} target="_blank" rel="noreferrer">
+                          View on explorer
+                        </a>
+                      </p>
+                    )}
+                  </div>
                 )}
-                {transactionState.stage === 'failed' && <p className="order-create__error">{transactionState.error}</p>}
-                {transactionState.stage === 'success' && transactionState.hash && (
-                  <p>
-                    Order confirmed on-chain.{' '}
-                    <a href={transactionState.explorerUrl} target="_blank" rel="noreferrer">
-                      View on explorer
-                    </a>
-                  </p>
-                )}
-              </div>
-            )}
+              </>
+            </NetworkGuard>
           </div>
 
           {(orderDetail || optimisticOrder) && (

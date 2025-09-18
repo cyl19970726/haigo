@@ -141,7 +141,25 @@ describe('CreateOrderView', () => {
     await waitFor(() => expect(signAndSubmit).toHaveBeenCalled());
     await waitFor(() => expect(transactionGetByHash).toHaveBeenCalled());
 
-    expect(await screen.findByText(/Order confirmed on-chain/i)).toBeInTheDocument();
+    expect(await screen.findByText(/Record UID/i)).toBeInTheDocument();
     expect(mockFetchOrderSummaries).toHaveBeenCalled();
+  });
+
+  it('shows network mismatch fallback and hides submission controls', async () => {
+    contextRef.current = {
+      ...walletContext,
+      networkStatus: { expected: 'testnet', actual: 'devnet', isMatch: false, lastChecked: Date.now(), error: undefined }
+    } as WalletContextValue;
+
+    const user = userEvent.setup();
+    render(<CreateOrderView />);
+
+    await waitFor(() => expect(mockFetchWarehouses).toHaveBeenCalled());
+
+    await user.click(screen.getByRole('button', { name: /Use this warehouse/i }));
+    await user.click(screen.getByRole('button', { name: /Continue to review/i }));
+
+    expect(screen.getByRole('heading', { level: 2, name: /Switch Aptos Network/i })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Sign & submit/i })).not.toBeInTheDocument();
   });
 });
