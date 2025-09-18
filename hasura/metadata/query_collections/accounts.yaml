@@ -1,0 +1,23 @@
+name: account_queries
+definition:
+  queries:
+    - name: accountByAddress
+      query: |
+        query accountByAddress($address: String!) {
+          accounts_by_pk(account_address: $address) {
+            account_address
+            role
+            profile_hash_algo
+            profile_hash_value
+            profile_uri
+            txn_version
+            event_index
+            chain_timestamp
+            orders_by_creator: orders_by_creator {
+              record_uid
+            }
+            orders_by_warehouse: orders_by_warehouse {
+              record_uid
+            }
+          }
+        }

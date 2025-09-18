@@ -54,6 +54,12 @@ docker compose up -d postgres hasura bff
    aptos move test
    aptos move publish --profile testnet
    ```
+4. 若测试网账户余额不足，先通过官方 Faucet 领取测试币：
+   ```bash
+   aptos account fund-with-faucet --account <YOUR_ACCOUNT_ADDRESS> --amount 100000000 --url https://faucet.testnet.aptoslabs.com
+   ```
+   - 上述命令一次领取 0.1 APT，可按需重复；也可访问 https://faucet.testnet.aptoslabs.com/ 使用网页端。
+   - 团队内部若提供集中钱包，可参考内部流程从共享钱包转账测试币。
 4. 部署后记录模块地址，更新 `packages/shared/config/aptos.ts`。
 5. 使用 `aptos account list` 或官方 Indexer 查询事件，确保部署成功。
 
@@ -85,6 +91,7 @@ docker compose up -d postgres hasura bff
    - 钱包连接 → 注册（调用合约）
    - 创建订单 → 检查 BFF 时间线
    - 上传媒体 → 哈希校验提示
+   - 手动下单巡检：选择仓库 → 调整保险费率 → 运行 Gas 模拟 → 签名交易 → 跳转订单时间线并核对最新事件。
 
 ## 8. 测试策略
 - Move：`aptos move test`（覆盖注册、订单、状态机异常）。
@@ -128,3 +135,4 @@ docker compose up -d postgres hasura bff
 - Hasura metadata 版本库位置。
 - OSS 迁移步骤（待定）。
 - 测试脚本自动化与 E2E 方案。
+- Order lifecycle 模块发布后，需在集成阶段更新 `packages/shared/src/config/aptos.ts` 与 BFF 环境变量；与 BFF/前端团队同步安排窗口。

@@ -9,6 +9,7 @@ export interface AptosConfig {
   faucetUrl?: string;
   modules: {
     registry: string;
+    orders: string;
   };
 }
 
@@ -20,6 +21,7 @@ export const APTOS_CONFIG_DEV: AptosConfig = {
   modules: {
     // This will be the dev address until actual deployment
     registry: '0xA11CE',
+    orders: '0xA11CE',
   },
 };
 
@@ -31,6 +33,7 @@ export const APTOS_CONFIG_TESTNET: AptosConfig = {
   modules: {
     // TODO: Update with actual deployed module address after running deploy_registry.sh
     registry: process.env.NEXT_PUBLIC_APTOS_MODULE ?? 'TBD_AFTER_DEPLOYMENT',
+    orders: process.env.NEXT_PUBLIC_APTOS_ORDERS_MODULE ?? 'TBD_AFTER_DEPLOYMENT',
   },
 };
 
@@ -41,6 +44,7 @@ export const APTOS_CONFIG_MAINNET: AptosConfig = {
   modules: {
     // TODO: Update with mainnet deployment address
     registry: 'TBD_AFTER_MAINNET_DEPLOYMENT',
+    orders: 'TBD_AFTER_MAINNET_DEPLOYMENT',
   },
 };
 
@@ -69,6 +73,15 @@ export const REGISTRY_MODULE = {
   HASH_ALGORITHM_BLAKE3: 1,
 } as const;
 
+export const ORDERS_MODULE_NAME = 'orders' as const;
+
+export const ORDER_EVENT_TYPES = {
+  ORDER_CREATED: 'OrderCreated',
+  CHECKED_IN: 'CheckedIn',
+  SET_IN_STORAGE: 'SetInStorage',
+  CHECKED_OUT: 'CheckedOut'
+} as const;
+
 // Event type names for indexing
 export const EVENT_TYPES = {
   SELLER_REGISTERED: 'SellerRegistered',
@@ -77,4 +90,7 @@ export const EVENT_TYPES = {
 
 // Legacy exports for backward compatibility
 export const APTOS_MODULE_ADDRESS = getAptosConfig().modules.registry;
+export const ORDERS_MODULE_ADDRESS = getAptosConfig().modules.orders;
 export const NETWORK_NAME = getAptosConfig().network;
+
+export const APTOS_COIN_TYPE = '0x1::aptos_coin::AptosCoin';

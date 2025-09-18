@@ -1,6 +1,9 @@
 # Epic 1: Infrastructure & On-chain Registration (基础设施与链上注册)
 **目标**：在 Aptos 上部署基础合约，搭建 Monorepo 工程、持续集成与前端钱包接入，确保商家与仓主能够完成链上注册以及链下档案哈希绑定。
 
+## 跨故事统一要求
+- PoC 阶段统一使用 `docker/compose.poc.yml` 启动 Postgres、Hasura 数据服务，BFF/Web 在宿主机运行；团队成员须按照《docs/architecture/6-部署与环境.md#61-本地-docker-poc-环境》准备环境并在每个故事交付时验证连通性。
+
 ## Story 1.1 Monorepo & CI/CD Foundations (Monorepo 与 CI/CD 基座)
 > 作为平台工程团队，我希望搭建 Monorepo 结构、基础包管理与 CI/CD 流水线，以便后续 Move 合约、后端与前端协同开发并自动化验证质量。
 
@@ -36,3 +39,4 @@
 2: 提供 REST/BFF 接口返回账户档案（地址、角色、哈希、注册时间）。
 3: 实现哈希验证 API，可对链下档案重新计算哈希并与链上比对。
 4: 集成测试覆盖事件消费、数据库写入与哈希验证流程。
+5: 上述功能需在 Docker Compose 环境中完成端到端验证（仅 Postgres/Hasura 容器，参照 docker/compose.poc.yml），并确保宿主机 BFF/Web 可以连接对应服务。

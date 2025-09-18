@@ -29,8 +29,8 @@ export interface WalletContextValue {
   accountAddress?: string;
   accountPublicKey?: string;
   walletName?: string;
-  availableWallets: { name: string; icon: string; readyState: string }[];
-  connect: (walletName?: string) => Promise<void>;
+  availableWallets: { name: string; icon: string; readyState?: string }[];
+  connect: (walletName: string) => Promise<void>;
   disconnect: () => Promise<void>;
   networkStatus: NetworkStatus;
   refreshNetworkStatus: (retries?: number) => Promise<NetworkStatus>;
@@ -74,7 +74,7 @@ const WalletContextBridge = ({ children }: { children: ReactNode }) => {
     connect: rawConnect,
     disconnect: rawDisconnect,
     connected,
-    connecting,
+    isLoading,
     wallet,
     wallets,
     network,
@@ -112,7 +112,7 @@ const WalletContextBridge = ({ children }: { children: ReactNode }) => {
   );
 
   const connect = useCallback(
-    async (walletName?: string) => {
+    async (walletName: string) => {
       setConnectionError(undefined);
       try {
         await rawConnect(walletName);
@@ -131,7 +131,7 @@ const WalletContextBridge = ({ children }: { children: ReactNode }) => {
     setNetworkStatus(computeNetworkStatus(undefined));
   }, [rawDisconnect]);
 
-  const status: WalletConnectionStatus = connecting ? 'connecting' : connected ? 'connected' : 'disconnected';
+  const status: WalletConnectionStatus = isLoading ? 'connecting' : connected ? 'connected' : 'disconnected';
 
   const availableWallets = useMemo(
     () =>
@@ -145,8 +145,8 @@ const WalletContextBridge = ({ children }: { children: ReactNode }) => {
 
   const value: WalletContextValue = {
     status,
-    accountAddress: account?.address,
-    accountPublicKey: account?.publicKey,
+    accountAddress: account?.address?.toString(),
+    accountPublicKey: account?.publicKey?.toString(),
     walletName: wallet?.name,
     availableWallets,
     connect,

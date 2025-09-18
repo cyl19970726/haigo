@@ -1,0 +1,31 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum AccountRole {
+  seller
+  warehouse
+}
+
+model Account {
+  accountAddress   String   @id @map("account_address")
+  role             AccountRole
+  profileHashAlgo  String   @default("blake3") @map("profile_hash_algo")
+  profileHashValue String   @map("profile_hash_value")
+  profileUri       String?  @map("profile_uri")
+  registeredBy     String   @map("registered_by")
+  txnVersion       BigInt   @map("txn_version")
+  eventIndex       BigInt   @map("event_index")
+  txnHash          String   @map("txn_hash")
+  chainTimestamp   DateTime @map("chain_timestamp")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  @@unique([txnVersion, eventIndex], map: "accounts_event_uniq")
+  @@map("accounts")
+}

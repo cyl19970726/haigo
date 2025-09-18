@@ -1,0 +1,62 @@
+schema: 1
+story: '1.3'
+story_title: 'Frontend Wallet Connection & Identity Selection'
+gate: CONCERNS
+status_reason: 'Hashing runs on UI thread and required end-to-end tests are missing; address before promoting.'
+reviewer: 'Quinn (Test Architect)'
+updated: '2025-09-17T12:23:28Z'
+
+top_issues:
+  - id: qa-1
+    severity: medium
+    description: 'Large document hashing executes synchronously on the main thread, violating the performance constraint for ≤200MB uploads.'
+    impact: 'Users will see UI freezes during hashing, risking browser timeouts and poor UX for required documentation sizes.'
+    recommendation: 'Move BLAKE3 hashing into a Web Worker or streaming workerized flow so hashing no longer blocks rendering.'
+    refs:
+      - apps/web/lib/crypto/blake3.ts
+      - apps/web/features/registration/RegisterView.tsx
+    suggested_owner: dev
+  - id: qa-2
+    severity: medium
+    description: 'Story-defined Playwright/Cypress E2E coverage and accessibility assertions remain unimplemented.'
+    impact: 'Regression risk remains high for wallet, upload, and transaction flows without UI-level automated coverage.'
+    recommendation: 'Add the promised E2E suite and extend component tests to cover network mismatch and error paths.'
+    refs:
+      - docs/stories/1.3.story.md
+      - apps/web/package.json
+    suggested_owner: dev
+
+waiver:
+  active: false
+
+quality_score: 80
+expires: '2025-10-01T12:23:28Z'
+
+evidence:
+  tests_reviewed: 8
+  risks_identified: 2
+  trace:
+    ac_covered: [1, 2, 3, 4]
+    ac_gaps: []
+
+nfr_validation:
+  security:
+    status: PASS
+    notes: 'Wallet gating blocks cross-network submissions; no sensitive data exposed.'
+  performance:
+    status: CONCERNS
+    notes: 'Hashing remains synchronous on UI thread for large files.'
+  reliability:
+    status: PASS
+    notes: 'Transaction polling, retries, and error messaging behave as expected in review.'
+  maintainability:
+    status: CONCERNS
+    notes: 'Missing E2E/accessibility tests reduce confidence and increase regression risk.'
+
+recommendations:
+  immediate:
+    - action: 'Offload BLAKE3 hashing to a Web Worker-backed helper and confirm responsiveness with 200MB inputs.'
+      refs: ['apps/web/lib/crypto/blake3.ts']
+  future:
+    - action: 'Deliver the documented Playwright/Cypress flows and broaden component tests for error cases.'
+      refs: ['apps/web/features/registration/RegisterView.test.tsx']

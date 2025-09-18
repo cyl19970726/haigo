@@ -145,6 +145,9 @@ export function RegisterView() {
     signAndSubmitTransaction
   } = useWalletContext();
 
+  type SignAndSubmitTransactionInput = Parameters<typeof signAndSubmitTransaction>[0];
+  type RegisterTransactionInput = SignAndSubmitTransactionInput & { sender: string };
+
   const [role, setRole] = useState<RoleValue>('seller');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [fileMeta, setFileMeta] = useState<SelectedFileMeta | null>(null);
@@ -419,24 +422,36 @@ export function RegisterView() {
     }
   };
 
-  const registerFunction = `${APTOS_MODULE_ADDRESS}::registry::${role === 'seller' ? 'register_seller' : 'register_warehouse'}`;
+  const registerFunction = useMemo(
+    () =>
+      `${APTOS_MODULE_ADDRESS}::registry::${role === 'seller' ? 'register_seller' : 'register_warehouse'}` as `${string}::${string}::${string}`,
+    [role]
+  );
 
-  const buildRegisterTransaction = useCallback(
-    async (hashValue: string): Promise<SimpleTransaction> => {
+  const buildRegisterTransactionInput = useCallback(
+    (hashValue: string): RegisterTransactionInput => {
       if (!accountAddress) {
         throw new Error('Connect your wallet before submitting the transaction.');
       }
 
-      return aptos.transaction.build.simple({
+      return {
         sender: accountAddress,
         data: {
           function: registerFunction,
           typeArguments: [],
           functionArguments: [REGISTRY_MODULE.HASH_ALGORITHM_BLAKE3, hashValue]
         }
-      });
+      } satisfies RegisterTransactionInput;
     },
-    [accountAddress, aptos, registerFunction]
+    [accountAddress, registerFunction]
+  );
+
+  const buildRegisterTransaction = useCallback(
+    async (hashValue: string): Promise<SimpleTransaction> => {
+      const transactionInput = buildRegisterTransactionInput(hashValue);
+      return aptos.transaction.build.simple(transactionInput);
+    },
+    [aptos, buildRegisterTransactionInput]
   );
 
   const simulateRegistration = useCallback(async () => {
@@ -557,16 +572,21 @@ export function RegisterView() {
 
     setTransactionState({ stage: 'submitting' });
     try {
+      const transactionInput = buildRegisterTransactionInput(activeHash);
+
       const transaction =
         simulationState.status === 'success'
           ? simulationState.transaction
           : await buildRegisterTransaction(activeHash);
 
-      const result = await signAndSubmitTransaction(transaction);
+      const result = await signAndSubmitTransaction(transactionInput);
       const txnHash =
         typeof result === 'string'
           ? result
-          : result?.hash || result?.transactionHash || (result as any)?.txnHash;
+          : result?.hash ??
+            (typeof (result as any)?.transactionHash === 'string' ? (result as any).transactionHash : undefined) ??
+            (typeof (result as any)?.txnHash === 'string' ? (result as any).txnHash : undefined) ??
+            (typeof (result as any)?.result?.hash === 'string' ? (result as any).result.hash : undefined);
 
       if (!txnHash) {
         throw new Error('Wallet did not return a transaction hash.');
@@ -610,6 +630,7 @@ export function RegisterView() {
     activeHash,
     simulationState,
     buildRegisterTransaction,
+    buildRegisterTransactionInput,
     signAndSubmitTransaction,
     networkStatus.expected,
     pollTransaction,
