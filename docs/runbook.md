@@ -35,7 +35,8 @@ docker compose up -d postgres hasura bff
 | `HASURA_GRAPHQL_ENDPOINT` | Hasura GraphQL URL | `http://localhost:8080/v1/graphql` |
 | `HASURA_ADMIN_SECRET` | Hasura 管理口令 | `changeme` |
 | `APTOS_INDEXER_ENDPOINT` | 官方 Indexer GraphQL URL | `https://api.testnet.aptoslabs.com/v1/graphql` |
-| `MEDIA_ROOT` | 本地媒体存储目录 | `./storage/media` |
+| `MEDIA_STORAGE_DIR` | 本地媒体存储目录 | `./storage/media` |
+| `MEDIA_PUBLIC_PREFIX` | 媒体资源静态访问前缀（可选） | `/media` |
 | `MEDIA_MAX_FILE_MB` | 上传限制 | `200` |
 
 > 提示：部署环境应改用 Secrets 管理（阿里云 KMS、GitHub Secrets 等），避免明文存储私钥。
@@ -73,6 +74,8 @@ docker compose up -d postgres hasura bff
    - `/api/accounts/:address`
    - `/api/orders/:record_uid`
    - `/api/media/uploads`
+5. 若使用自定义存储路径，设置 `MEDIA_STORAGE_DIR`（默认输出到仓库下 `storage/media`）与可选的 `MEDIA_PUBLIC_PREFIX`，确保对应目录具有写入权限。
+6. 手动验证媒体上传：构造包含 `record_uid`、`stage`、`category`、`hash_value` 与文件体的 `multipart/form-data` 请求（例如使用 `curl -F`），检查响应中的 `storagePath` 与 `hashValue` 与客户端一致，并确认服务器落盘文件存在。
 
 ## 6. Hasura 设置
 1. 通过 Docker Compose 启动 Hasura (`localhost:8080`)。
