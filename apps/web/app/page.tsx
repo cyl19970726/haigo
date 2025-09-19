@@ -14,6 +14,7 @@ export default function LandingPage() {
   const {
     status,
     accountAddress,
+    accountPublicKey,
     availableWallets,
     connect,
     connectionError,
@@ -53,9 +54,9 @@ export default function LandingPage() {
 
   const ensureSession = useCallback(
     async (address: string) => {
-      return ensureSessionLogin(address, signMessage ?? undefined);
+      return ensureSessionLogin(address, signMessage ?? undefined, accountPublicKey);
     },
-    [signMessage]
+    [signMessage, accountPublicKey]
   );
 
   useEffect(() => {
@@ -133,6 +134,8 @@ export default function LandingPage() {
     void check(accountAddress);
   };
 
+  // 登录通过 Connect Wallet 完成，无需单独 Sign in 入口
+
   const networkMismatchFallback = (
     <section className="landing-hero text-center" role="alert">
       <h1 className="landing-hero__headline">Switch to {networkStatus.expected}</h1>
@@ -155,14 +158,32 @@ export default function LandingPage() {
               Indexer‑backed proofs, transparent lifecycle, and reliable storage partners — connect your wallet to get started.
             </p>
             <div className="landing-hero__actions">
-              {availableWallets.map((wallet) => (
-                <Button key={wallet.name} disabled={disableConnect} onClick={() => void connect(wallet.name)}>
-                  {status === 'connecting' ? 'Connecting…' : `Connect ${wallet.name}`}
+              {availableWallets.length === 0 ? (
+                <Button disabled>Install an Aptos wallet to continue</Button>
+              ) : (
+                <Button
+                  disabled={disableConnect}
+                  onClick={() => {
+                    // 选择优先钱包：Petra > Martian > 其他（已安装优先）
+                    const byPriority = (names: string[]) =>
+                      names
+                        .map((n) => availableWallets.find((w) => w.name.toLowerCase().includes(n)))
+                        .filter(Boolean) as typeof availableWallets;
+                    const installed = availableWallets.filter((w) => (w.readyState || '').toLowerCase().includes('installed'));
+                    const [choice] = [
+                      ...byPriority(['petra', 'martian']),
+                      ...(installed.length ? installed : availableWallets)
+                    ];
+                    if (choice) void connect(choice.name);
+                  }}
+                >
+                  {status === 'connecting' ? 'Connecting…' : 'Connect Wallet'}
                 </Button>
-              ))}
+              )}
               <Button variant="secondary" disabled={disableRegister} onClick={() => router.push('/register')}>
                 Register Identity
               </Button>
+              {/* 登录通过 Connect Wallet 完成，不额外提供 Sign in 按钮 */}
               {showRetryButton && (
                 <Button variant="outline" disabled={isProcessing} onClick={handleRetry}>
                   Retry lookup
@@ -175,9 +196,14 @@ export default function LandingPage() {
               </p>
             )}
             {errorMessage && (
-              <p role="alert" className="mt-2 text-red-600">
-                {errorMessage}
-              </p>
+              <div role="alert" className="mt-2 text-red-600">
+                <p>{errorMessage}</p>
+                {errorMessage.toLowerCase().includes('did not return a login signature') && (
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    The wallet dialog may have been closed or blocked. Click "Connect Wallet" again to retry signature.
+                  </p>
+                )}
+              </div>
             )}
             {statusMessage && (
               <p className="mt-3 text-sm text-muted-foreground">{statusMessage}</p>

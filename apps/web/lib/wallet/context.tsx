@@ -116,15 +116,27 @@ const WalletContextBridge = ({ children }: { children: ReactNode }) => {
   const connect = useCallback(
     async (walletName: string) => {
       setConnectionError(undefined);
+
+      // 避免对已连接的钱包重复发起连接请求（Petra 会抛出 "wallet is already connected"）
+      if (wallet?.name === walletName && connected) {
+        return;
+      }
+
       try {
         await rawConnect(walletName);
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Failed to connect wallet';
+
+        // 对已经连接的特殊报错视为非致命情况，直接忽略
+        if (message?.toLowerCase().includes('already connected')) {
+          return;
+        }
+
         setConnectionError(message);
         throw error;
       }
     },
-    [rawConnect]
+    [connected, rawConnect, wallet?.name]
   );
 
   const disconnect = useCallback(async () => {

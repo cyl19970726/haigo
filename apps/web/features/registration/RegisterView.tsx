@@ -672,7 +672,7 @@ export function RegisterView() {
       const path = accountInfo.role === 'seller' ? '/dashboard/seller' : '/dashboard/warehouse';
       void (async () => {
         try {
-          await ensureSession(accountAddress, signMessage ?? undefined);
+          await ensureSession(accountAddress, signMessage ?? undefined, accountPublicKey ?? undefined);
           setRedirectAnnounce('Registration succeeded, redirecting to your dashboard…');
           setTimeout(() => router.push(path), 400);
         } catch (error) {

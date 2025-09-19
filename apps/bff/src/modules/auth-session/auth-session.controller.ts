@@ -13,6 +13,7 @@ interface VerifyRequestBody {
   address: string;
   publicKey: string;
   signature: string;
+  fullMessage?: string;
 }
 
 @Controller('api/session')
@@ -29,7 +30,7 @@ export class AuthSessionController {
   async verifySession(@Body() body: VerifyRequestBody, @Res({ passthrough: true }) res: Response) {
     const { sessionId, profile } = await this.authSessionService.verifyChallenge(body);
     this.setSessionCookie(res, sessionId);
-    return { data: profile };
+    return { data: profile, sessionId };
   }
 
   @Get('profile')

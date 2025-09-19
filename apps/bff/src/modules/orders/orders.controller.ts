@@ -63,9 +63,9 @@ export class OrdersController {
 
   @Get()
   async list(@Query() query: OrdersListQuery): Promise<OrdersListResponse> {
-    const filters = this.parseListQuery(query);
     const startedAt = Date.now();
     try {
+      const filters = this.parseListQuery(query);
       const result = await this.orders.listSummaries(filters);
       this.metrics.recordOrdersInboxRequest({ latencyMs: Date.now() - startedAt });
       return {

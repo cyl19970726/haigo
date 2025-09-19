@@ -44,7 +44,7 @@ export async function requestSessionChallenge(address: string): Promise<SessionC
   return payload.data;
 }
 
-export async function verifySession(payload: { address: string; publicKey: string; signature: string }) {
+export async function verifySession(payload: { address: string; publicKey: string; signature: string; fullMessage?: string }): Promise<{ profile: AccountProfile; sessionId?: string }> {
   const response = await fetch(buildUrl('/api/session/verify'), {
     method: 'POST',
     credentials: 'include',
@@ -59,8 +59,8 @@ export async function verifySession(payload: { address: string; publicKey: strin
     throw new Error(body?.message || 'Failed to verify session');
   }
 
-  const body = await parseJson<{ data: AccountProfile }>(response);
-  return body.data;
+  const body = await parseJson<{ data: AccountProfile; sessionId?: string }>(response);
+  return { profile: body.data, sessionId: body.sessionId };
 }
 
 export async function fetchSessionProfile(): Promise<AccountProfile | null> {

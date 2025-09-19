@@ -46,6 +46,7 @@ export class AuthSessionService {
     address: string;
     publicKey: string;
     signature: string;
+    fullMessage?: string;
   }): Promise<{ sessionId: string; profile: AccountProfile }> {
     const normalizedAddress = this.normalizeAddress(params.address);
     if (!normalizedAddress) {
@@ -61,12 +62,19 @@ export class AuthSessionService {
       throw new UnauthorizedException('Challenge expired');
     }
 
-    const message = this.buildChallengeMessage(challenge.nonce);
+    // 按 Aptos SignMessage 规范校验：钱包会对结构化消息进行签名
+    // 我们组装与前端请求相同的 payload 并进行验证
+    const signedMessagePayload = params.fullMessage
+      ? params.fullMessage
+      : this.buildSignedMessagePayload({
+          message: this.buildChallengeMessage(challenge.nonce),
+          nonce: challenge.nonce
+        });
     this.verifySignature({
       expectedAddress: normalizedAddress,
       publicKey: params.publicKey,
       signature: params.signature,
-      message
+      message: signedMessagePayload
     });
 
     const profile = await this.accountsService.getAccountProfile(normalizedAddress);
@@ -137,6 +145,22 @@ export class AuthSessionService {
 
   private buildChallengeMessage(nonce: string): string {
     return `HaiGo login challenge: ${nonce}`;
+  }
+
+  /**
+   * 生成与钱包 signMessage 一致的签名消息：
+   * AIP-63/Aptos Signed Message 规范要求签名原文包含固定前缀与 JSON 结构。
+   * 参考 wallet-adapter 的 signMessage 行为：始终包含 message 与 nonce，address/application/chainId 由前端关闭。
+   */
+  private buildSignedMessagePayload(params: { message: string; nonce: string }): string {
+    // 前缀来自 Aptos 钱包消息签名规范
+    const prefix = 'APTOS';
+    const payload = {
+      message: params.message,
+      nonce: params.nonce
+    };
+    // 与钱包一致：多行文本：第一行固定前缀，随后是 JSON 串
+    return `${prefix}\n${JSON.stringify(payload)}`;
   }
 
   private normalizeAddress(address: string | undefined): string {

@@ -4,7 +4,10 @@ import { Providers } from './providers';
 
 export const metadata = {
   title: 'Haigo Platform',
-  description: 'Collaborative insurance tooling on Aptos.'
+  description: 'Collaborative insurance tooling on Aptos.',
+  icons: {
+    icon: 'data:,'
+  }
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
