@@ -7,7 +7,8 @@ import {
   UploadedFile,
   UseInterceptors,
   Res,
-  Req
+  Req,
+  NotFoundException
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { Request, Response } from 'express';
@@ -30,12 +31,24 @@ export class AccountsController {
     const { requestId, timestamp, traceId } = this.createResponseMeta(req);
     res.setHeader('x-haigo-trace-id', traceId);
 
-    const profile = await this.accountsService.getAccountProfile(address);
+    try {
+      const profile = await this.accountsService.getAccountProfile(address);
 
-    return {
-      data: profile,
-      meta: this.buildMeta(requestId, timestamp)
-    };
+      return {
+        data: profile,
+        meta: this.buildMeta(requestId, timestamp)
+      };
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        res.status(404);
+        return {
+          data: null,
+          meta: this.buildMeta(requestId, timestamp)
+        };
+      }
+
+      throw error;
+    }
   }
 
   @Post(':address/verify-hash')

@@ -1,15 +1,21 @@
 'use client';
 
 import Link from 'next/link';
+import { SignOutButton } from '../../../features/auth/SignOutButton';
 
 export default function SellerDashboardPage() {
   return (
     <main className="mx-auto max-w-5xl px-6 py-10">
       <header className="mb-8">
-        <h1 className="text-3xl font-bold text-slate-900">Seller workspace</h1>
-        <p className="mt-2 text-sm text-slate-600">
-          Jump into your daily tasks. Start by exploring the community warehouse directory, then create and track orders.
-        </p>
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-bold text-slate-900">Seller workspace</h1>
+            <p className="mt-2 text-sm text-slate-600">
+              Jump into your daily tasks. Start by exploring the community warehouse directory, then create and track orders.
+            </p>
+          </div>
+          <SignOutButton />
+        </div>
       </header>
 
       <section className="grid gap-4 md:grid-cols-2">

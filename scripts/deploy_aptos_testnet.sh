@@ -13,6 +13,7 @@ ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 PKG_DIR="$ROOT_DIR/move"
 ENV_FILE="$ROOT_DIR/.env.local"
 WEB_ENV_FILE="$ROOT_DIR/apps/web/.env.local"
+BFF_ENV_FILE="$ROOT_DIR/apps/bff/.env"
 
 echo "==> Deploying Move package to Aptos $NETWORK with profile '$PROFILE'"
 
@@ -77,13 +78,18 @@ aptos move run --profile "$PROFILE" --assume-yes --function-id "$ACCOUNT_ADDR::o
   --args address:$ACCOUNT_ADDR bool:false || true
 
 # Update .env.local with addresses and network
-echo "==> Updating $ENV_FILE and $WEB_ENV_FILE"
+echo "==> Updating $ENV_FILE and $WEB_ENV_FILE${BFF_ENV_FILE:+ and $BFF_ENV_FILE}"
 touch "$ENV_FILE"
 backup="$ENV_FILE.bak.$(date +%s)"
 cp "$ENV_FILE" "$backup"
 touch "$WEB_ENV_FILE"
 web_backup="$WEB_ENV_FILE.bak.$(date +%s)"
 cp "$WEB_ENV_FILE" "$web_backup" 2>/dev/null || true
+if [ -n "$BFF_ENV_FILE" ]; then
+  touch "$BFF_ENV_FILE" 2>/dev/null || true
+  bff_backup="$BFF_ENV_FILE.bak.$(date +%s)"
+  cp "$BFF_ENV_FILE" "$bff_backup" 2>/dev/null || true
+fi
 
 upsert_env_file() {
   local file="$1"; shift
@@ -107,6 +113,18 @@ upsert_env_file "$WEB_ENV_FILE" NEXT_PUBLIC_APTOS_NETWORK "$NETWORK"
 upsert_env_file "$WEB_ENV_FILE" NEXT_PUBLIC_APTOS_MODULE "$ACCOUNT_ADDR"
 upsert_env_file "$WEB_ENV_FILE" NEXT_PUBLIC_APTOS_ORDERS_MODULE "$ACCOUNT_ADDR"
 
-echo "==> Done. Backups: $backup and $web_backup"
+# optional bff env updates (if file exists)
+if [ -f "$BFF_ENV_FILE" ]; then
+  upsert_env_file "$BFF_ENV_FILE" APTOS_NETWORK "$NETWORK"
+  upsert_env_file "$BFF_ENV_FILE" NEXT_PUBLIC_APTOS_NETWORK "$NETWORK"
+  upsert_env_file "$BFF_ENV_FILE" NEXT_PUBLIC_APTOS_MODULE "$ACCOUNT_ADDR"
+  upsert_env_file "$BFF_ENV_FILE" NEXT_PUBLIC_APTOS_ORDERS_MODULE "$ACCOUNT_ADDR"
+fi
+
+if [ -n "${bff_backup:-}" ]; then
+  echo "==> Done. Backups: $backup, $web_backup and $bff_backup"
+else
+  echo "==> Done. Backups: $backup and $web_backup"
+fi
 echo "    Deployed module address: $ACCOUNT_ADDR"
 echo "    Remember to restart your apps to pick up env changes."

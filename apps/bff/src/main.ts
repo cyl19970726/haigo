@@ -20,7 +20,7 @@ async function bootstrap() {
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['content-type', 'authorization', 'x-requested-with', 'x-haigo-trace-id'],
     exposedHeaders: ['x-haigo-trace-id'],
-    credentials: false,
+    credentials: true,
     optionsSuccessStatus: 204
   });
   const port = process.env.PORT || 3001;

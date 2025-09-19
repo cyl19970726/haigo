@@ -5,8 +5,9 @@ const nextConfig = {
     appDir: true
   },
   i18n: {
-    locales: ['en', 'zh'],
-    defaultLocale: 'en'
+    locales: ['en'],
+    defaultLocale: 'en',
+    localeDetection: false
   }
 };
 

@@ -9,6 +9,7 @@ declare const global: typeof globalThis & { fetch: ReturnType<typeof vi.fn> };
 const mockUpload = vi.fn();
 const mockFetchAccount = vi.fn();
 const mockHashFile = vi.fn();
+const mockEnsureSession = vi.fn();
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({
@@ -29,6 +30,10 @@ vi.mock('next/navigation', () => ({
 vi.mock('../../lib/api/registration', () => ({
   uploadIdentityDocument: (...args: Parameters<typeof mockUpload>) => mockUpload(...args),
   fetchAccountProfile: (...args: Parameters<typeof mockFetchAccount>) => mockFetchAccount(...args)
+}));
+
+vi.mock('../../lib/session/ensureSession', () => ({
+  ensureSession: (...args: Parameters<typeof mockEnsureSession>) => mockEnsureSession(...args)
 }));
 
 vi.mock('../../lib/crypto/blake3', () => ({
@@ -73,7 +78,8 @@ const baseContext: WalletContextValue = {
     }
   } as unknown as WalletContextValue['aptos'],
   signAndSubmitTransaction: signAndSubmit,
-  signTransaction: vi.fn()
+  signTransaction: vi.fn(),
+  signMessage: vi.fn()
 };
 
 const contextRef: { current: WalletContextValue } = {
@@ -107,6 +113,13 @@ const resetMocks = () => {
     } as unknown as WalletContextValue['aptos'],
     accountPublicKey: mockPublicKey
   };
+  contextRef.current.signMessage = vi.fn();
+  mockEnsureSession.mockResolvedValue({
+    address: '0x1',
+    role: 'seller',
+    profileHash: { algorithm: 'blake3', value: 'c'.repeat(64) },
+    registeredAt: new Date().toISOString()
+  });
 };
 
 beforeEach(() => {

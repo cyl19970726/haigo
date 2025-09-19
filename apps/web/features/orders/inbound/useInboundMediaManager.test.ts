@@ -46,7 +46,7 @@ describe('useInboundMediaManager', () => {
     });
 
     await waitFor(() => expect(result.current.messages.length).toBeGreaterThan(0));
-    expect(result.current.messages[0].message).toContain('未被允许上传');
+    expect(result.current.messages[0].message).toContain('not allowed for upload');
   });
 
   it('hashes and uploads media files', async () => {
@@ -100,7 +100,7 @@ describe('useInboundMediaManager', () => {
     expect(uploadMediaAssetMock).not.toHaveBeenCalled();
     await waitFor(() => {
       expect(result.current.messages.length).toBeGreaterThan(0);
-      expect(result.current.messages[result.current.messages.length - 1]?.message).toContain('请稍候再重试上传');
+      expect(result.current.messages[result.current.messages.length - 1]?.message).toContain('Please wait before retrying the upload');
     });
   });
 });

@@ -852,10 +852,11 @@ flowchart TD
 
 ### Interaction Flow
 - Login (Connect Wallet):
-  - On click: invoke wallet selector → connect → show address badge
-  - If registered → redirect to `/dashboard/{role}`
-  - If not registered → deep link to `/register`
-- Register CTA: deep link to `/register`
+  - Invoke wallet selector → connect → display address/network status (via NetworkGuard fallback when mismatched).
+  - After connect, probe `/api/accounts/:address` with exponential backoff (1s → 3s → 9s) and announce states via `aria-live`.
+  - When registered, complete session bootstrap (`/api/session/challenge` → wallet `signMessage` → `/api/session/verify`) before redirecting to `/dashboard/{role}`.
+  - On lookup or session failure, surface contextual copy and expose a manual “Retry lookup” action.
+- Register CTA: direct link to `/register` remains available throughout.
 
 ### Accessibility
 - Buttons with clear labels and aria-disabled when loading
@@ -870,7 +871,7 @@ flowchart TD
 - Goals: High‑conversion, product‑centric; immediate comprehension; clear CTAs.
 - Sections:
   1) Hero: Headline, subcopy, primary (Connect Wallet) and secondary (Register) CTAs; trust indicators.
-  2) Value Grid: 3–6 Cards with icon, title, description.
+  2) 价值网格：3–6 张卡片（含图标、标题与描述）。
   3) How It Works: 4 steps with compact visuals.
   4) Metrics/Testimonials (optional): brief stats or quotes.
   5) Footer.
@@ -898,18 +899,18 @@ ASCII Wireframe (single CTA in Hero)
 ```
 
 Components (shadcn)
-- Button, Card, Badge, Separator, Dialog, Toast, Navbar/Sheet (mobile menu).
+- Button, Card, Badge, Tabs, Table, Pagination, Skeleton, Alert, Separator, Dialog, Toast, Navbar/Sheet (mobile menu).
 
 Responsive & Theming
 - Breakpoints: sm/md/lg/xl; mobile‑first; grid stacks to single column on mobile.
 - Theming via CSS vars; respect prefers‑color‑scheme.
 
 Interaction
-- Primary CTA → connect flow → route by status; Secondary CTA → /register.
-- Announce via aria‑live; show toasts for errors.
+- Primary CTA → connect flow → session bootstrap → route by status; Secondary CTA → /register.
+- Announce via aria‑live; expose retry + guidance when registration lookup or session verification fail.
 
 Acceptance
-- Visual consistency across breakpoints; CTAs functional; a11y and perf checks pass.
+- Visual consistency across breakpoints; CTAs functional; session cookie established prior to dashboard redirect; a11y and perf checks pass.
 ## Dashboard (Seller / Warehouse)
 
 ### Goals
@@ -925,9 +926,10 @@ Acceptance
 - 配置提示：NEXT_PUBLIC_APTOS_NETWORK / BFF URL 缺失时提示。
 
 ### Warehouse Cards（MVP）
-- 质押/存储费：调用 GET /api/staking/intent 显示 stakedAmount 与 feePerUnit；提供“设置费率”按钮（POST /api/staking/storage-fee）。
-- 订单收件箱：调用 GET /api/orders?warehouse=… 显示待处理/在库/已出库分组。
-- 快捷操作 CTA：入库/出库入口（后续 O2 页面）。
+- 质押/存储费：调用 GET `/api/staking/intent` 显示 `stakedAmount` 与 `feePerUnit`；按钮触发 stake / fee 调整流。
+- 订单收件箱：调用 GET `/api/orders?warehouse=…&page=1&pageSize=5`，展示最近 5 条订单（状态 Badge + 金额 + 创建时间）并提供“查看全部订单”链接。
+- 运营快照：预留 O2 相关快捷入口，当前使用说明性占位卡片。
+- 状态处理：钱包未连接时显示提示文案；加载使用 Skeleton；错误以 Alert 呈现并提供重试。
 
 ### Loading/Error/Empty States
 - 初始 Skeleton；错误以 role=alert 呈现并供重试；空列表展示友好占位与说明。
@@ -935,37 +937,72 @@ Acceptance
 ### Accessibility
 - 所有卡片标题使用语义化元素；操作按钮具备明确 aria-label；错误提示带 role=alert。
 
-### Implementation Anchors（planned）
+### Implementation Anchors
 - `apps/web/app/dashboard/seller/page.tsx`
 - `apps/web/app/dashboard/warehouse/page.tsx`
+- `apps/web/app/(warehouse)/orders/page.tsx`
+- `apps/web/features/orders/inbox/*`
 - `apps/web/features/dashboard/*`
 
 ### Warehouse Dashboard ASCII Wireframe（MVP）
 ```
 ┌───────────────────────────────────────────────────────────────┐
-│  Welcome, 0xWAREHOUSE…               [Help] [Docs]           │
+│  仓库工作台                                       [帮助] [文档] │
 ├───────────────────────────────────────────────────────────────┤
-│  Staking & Storage Fee                                        │
-│  ┌────────────────────────────┐  ┌──────────────────────────┐ │
-│  │  Staked Amount             │  │  Storage Fee (per unit)  │ │
-│  │  [  1,200 APT        ]     │  │  [   25 bps          ]   │ │
-│  │  [Stake] [Unstake]         │  │  [Set Fee]               │ │
-│  └────────────────────────────┘  └──────────────────────────┘ │
+│  质押与存储费                                             ┌───┐│
+│  ┌────────────────────────────┐  ┌──────────────────────┐ │CTA││
+│  │  Staked Amount             │  │  Storage Fee (bps)   │ └───┘│
+│  │  1,200 APT                 │  │  25                  │      │
+│  │  [Stake] [Adjust Fee]      │  │                      │      │
+│  └────────────────────────────┘  └──────────────────────┘      │
 ├───────────────────────────────────────────────────────────────┤
-│  Orders Inbox (Recent)                                        │
+│  订单收件箱（最新 5 条）                                      │
 │  ┌─────────────────────────────────────────────────────────┐  │
-│  │  #123  CREATED     2025-09-19 10:31   [Check In]       │  │
-│  │  #122  IN_STORAGE  2025-09-18 18:04   [Check Out]      │  │
-│  │  #121  WAREHOUSE_IN 2025-09-18 16:22  [Set Storage]    │  │
+│  │  CREATED     #123   120.00 APT   09-19 10:31   查看详情 │  │
+│  │  IN_STORAGE  #122    98.50 APT   09-18 18:04   查看详情 │  │
+│  │  WAREHOUSE_IN#121    76.10 APT   09-18 16:22   查看详情 │  │
+│  │  …（Skeleton / 空态 / 错误提示）                         │  │
 │  └─────────────────────────────────────────────────────────┘  │
+│                                              [查看全部订单]→ │
 ├───────────────────────────────────────────────────────────────┤
-│  Quick Actions                                                │
-│  [Inbound Scan]   [Outbound Dispatch]   [Manage Fee]          │
+│  运营快照（占位）                                            │
+│  ┌─────────────────────────────────────────────────────────┐  │
+│  │  说明文案与未来指标占位。                               │  │
+│  └─────────────────────────────────────────────────────────┘  │
 └───────────────────────────────────────────────────────────────┘
 Legend:
-- Staking & Storage Fee 卡片：读取 /api/staking/intent，按钮触发钱包签名 stake/unstake/set_storage_fee。
-- Orders Inbox：读取 /api/orders?warehouse=…，按状态展示近几条订单；CTA 跳转 O2 页面。
+- Staking & Storage Fee 卡片：读取 `/api/staking/intent`，按钮触发钱包签名 stake/fee 调整。
+- Orders Inbox：读取 `/api/orders?...pageSize=5`，显示最新订单并跳转列表页。
+- 运营快照：占位，未来呈现库存/告警等指标。
 ```
+
+### Orders Inbox Card — UX Details（仓库收件箱卡片）
+- Content
+  - 字段：`status` Badge（映射中文标签）、`orderId`（fallback `recordUid`）、总金额（`pricing.totalSubunits` → APT）、`createdAt`（本地时间）、可选 `transactionHash` 截断显示。
+  - 行尾动作统一为 **查看详情**，跳转 `/(warehouse)/orders/[recordUid]/check-in`。
+- Density & Limits
+  - 固定渲染最新 5 条（`createdAt desc`），避免滚动；保留 `aria-live=polite` 以播报刷新结果。
+  - 底部「查看全部订单」链接跳转列表页；无钱包连接时禁用并提示。
+- 状态管理
+  - 未连接钱包：正文显示“连接仓库钱包即可查看专属订单收件箱”。
+  - 错误：卡片内显示 shadcn `Alert`，包含错误信息与重试指引。
+- Loading/Empty
+  - Loading：5 行 Skeleton，高度匹配最终行。
+  - Empty：展示“暂无待处理订单”+ 背景说明文案。
+
+### Warehouse Orders Page（`/(warehouse)/orders`）
+- 顶部 Header：标题 + 描述 + outline 样式刷新按钮（调用相同 API 重拉数据）。
+- 状态 Tabs：`ALL`、`PENDING`、`CREATED`、`WAREHOUSE_IN`、`IN_STORAGE`、`WAREHOUSE_OUT`；切换时重置 page=1 并重新请求。
+- 列表：shadcn Table，列顺序为 `orderId / 状态 / 总金额 / 创建时间 / Txn Hash / 操作`。
+- 分页：`PaginationPrevious`、`PaginationNext` 控件映射 `page`；文案“共 X 条 · 第 Y/Z 页”。
+- 错误与空态：复用 Alert + 虚线边框占位；Loading 显示 Skeleton 列表。
+- 未连接钱包：顶部 Info Alert 提示“连接仓库钱包后可见该仓库订单”。
+- Performance
+  - Limit re-renders; use memoized rows; avoid client-side data massaging; rely on API for sorting/paging.
+- Anchors (planned)
+  - `apps/web/app/dashboard/warehouse/page.tsx`（卡片渲染）
+  - `apps/web/app/(warehouse)/orders/page.tsx`（完整列表/分页/筛选）
+  - `apps/web/features/orders/inbox/WarehouseOrders.tsx`（数据与状态管理）
 
 ### Seller Dashboard ASCII Wireframe（MVP）
 ```
@@ -992,6 +1029,16 @@ Legend:
 - Recent Orders：调用 GET /api/orders?seller=…，显示近几条订单。
 - Find Warehouses：跳转 L1 Listing 页面，带初始筛选；完成选择后进入下单向导。
 ```
+
+### Dashboard User Actions — Sign out（通用）
+- Placement: Dashboard 顶部右侧（与帮助/文档入口并列），移动端折叠为溢出菜单项。
+- Behavior: 触发顺序 `POST /api/session/logout` → `wallet.disconnect()` → 清理本地缓存（例如 `haigo:orders:create`）→ 跳转 `/`。
+- Error Handling: 任一步失败不阻塞整体退出流程；在页面顶部以 `aria-live=polite` 宣告 “Signed out”。
+- Accessibility: Button 带 `aria-label="Sign out"`；键盘可达；focus-visible 样式可见。
+- Anchors (planned):
+  - `apps/web/app/dashboard/seller/page.tsx`（按钮放置）
+  - `apps/web/app/dashboard/warehouse/page.tsx`（按钮放置）
+  - `apps/web/features/auth/SignOutButton.tsx`（组件实现）
 
 ## Create Order (Merchant) — UI/UX
 

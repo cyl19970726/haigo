@@ -1,6 +1,7 @@
 'use client';
 
 import type { AccountResponse, AccountProfile } from '@shared/dto/registry';
+import { normalizeAccountResponse } from '@shared/dto/registry';
 
 interface ApiMeta {
   requestId?: string;
@@ -43,21 +44,10 @@ const extractData = <T>(payload: ApiEnvelope<T> | T): T => {
   return payload as T;
 };
 
-const mapAccountResponse = (payload: AccountResponse): AccountProfile => ({
-  address: payload.address,
-  role: payload.role,
-  profileHash: {
-    algo: payload.profileHash.algorithm,
-    value: payload.profileHash.value
-  },
-  profileUri: payload.profileUri,
-  registeredAt: payload.registeredAt,
-  orderCount: payload.orderCount
-});
-
 export async function fetchAccountProfile(address: string): Promise<AccountProfile | null> {
   const response = await fetch(buildUrl(`/api/accounts/${address}`), {
     method: 'GET',
+    credentials: 'include',
     headers: {
       Accept: 'application/json'
     }
@@ -74,10 +64,7 @@ export async function fetchAccountProfile(address: string): Promise<AccountProfi
 
   const body = await parseJson<ApiEnvelope<AccountResponse> | AccountResponse>(response);
   const data = extractData(body);
-  if (!data) {
-    return null;
-  }
-  return mapAccountResponse(data);
+  return normalizeAccountResponse(data);
 }
 
 export interface UploadIdentityParams {
@@ -98,6 +85,7 @@ export async function uploadIdentityDocument({ file, address, role, hash }: Uplo
 
   const response = await fetch(buildUrl('/api/media/uploads'), {
     method: 'POST',
+    credentials: 'include',
     body: formData
   });
 

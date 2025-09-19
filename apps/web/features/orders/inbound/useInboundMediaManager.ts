@@ -246,14 +246,14 @@ export const useInboundMediaManager = ({ recordUid, cachedItems }: UseInboundMed
         collection.forEach((file) => {
           const mime = normalizedMime(file.type);
           if (!allowedMimeSet.has(mime)) {
-            pushMessage('error', `文件 ${file.name} 的类型 ${file.type || '未知'} 未被允许上传`);
+            pushMessage('error', `File ${file.name} with type ${file.type || 'unknown'} is not allowed for upload`);
             return;
           }
 
           const maxSize = resolveMaxSize(file.type);
           if (file.size > maxSize) {
             const limitMb = (maxSize / (1024 * 1024)).toFixed(0);
-            pushMessage('error', `文件 ${file.name} 超出允许大小（最大 ${limitMb} MB）`);
+            pushMessage('error', `File ${file.name} exceeds the allowed size (max ${limitMb} MB)`);
             return;
           }
 
@@ -308,7 +308,7 @@ export const useInboundMediaManager = ({ recordUid, cachedItems }: UseInboundMed
               console.error('[HaiGo] failed to compute media hashes', error);
               updateItem(id, {
                 hashStatus: 'error',
-                hashError: error instanceof Error ? error.message : '无法计算文件哈希'
+                hashError: error instanceof Error ? error.message : 'Unable to compute file hash'
               });
             });
         });
@@ -343,7 +343,7 @@ export const useInboundMediaManager = ({ recordUid, cachedItems }: UseInboundMed
       if (!target) return null;
 
       if (target.hashStatus !== 'ready' || !target.blake3) {
-        pushMessage('error', `文件 ${target.fileName} 尚未完成哈希计算`);
+        pushMessage('error', `File ${target.fileName} has not finished hash calculation yet`);
         return null;
       }
 
@@ -352,7 +352,7 @@ export const useInboundMediaManager = ({ recordUid, cachedItems }: UseInboundMed
       }
 
       if (target.lastErrorAt && Date.now() - target.lastErrorAt < FALLBACK_THROTTLE_MS) {
-        pushMessage('error', `请稍候再重试上传 ${target.fileName}`);
+        pushMessage('error', `Please wait before retrying the upload for ${target.fileName}`);
         return null;
       }
 
@@ -390,7 +390,7 @@ export const useInboundMediaManager = ({ recordUid, cachedItems }: UseInboundMed
         const message =
           error instanceof Error
             ? error.message
-            : '上传失败，请稍后重试';
+            : 'Upload failed, please try again later';
 
         updateItem(id, (prev) => ({
           uploadStatus: 'error',
@@ -400,9 +400,9 @@ export const useInboundMediaManager = ({ recordUid, cachedItems }: UseInboundMed
         }));
 
         if ((error as { code?: string } | undefined)?.code === ORDER_MEDIA_ERROR_CODES.HASH_MISMATCH) {
-          pushMessage('error', `文件 ${target.fileName} 上传后哈希不一致，请重新选择`);
+          pushMessage('error', `File ${target.fileName} has a hash mismatch after upload. Please choose a new file`);
         } else {
-          pushMessage('error', `上传 ${target.fileName} 失败：${message}`);
+          pushMessage('error', `Failed to upload ${target.fileName}: ${message}`);
         }
 
         return null;

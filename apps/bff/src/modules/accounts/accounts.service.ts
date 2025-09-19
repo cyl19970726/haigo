@@ -38,7 +38,7 @@ export class AccountsService {
       address: normalizedAddress,
       role: this.toLiteralRole(account.role),
       profileHash: {
-        algo: 'blake3',
+        algorithm: 'blake3',
         value: account.profileHashValue
       },
       profileUri: account.profileUri ?? undefined,

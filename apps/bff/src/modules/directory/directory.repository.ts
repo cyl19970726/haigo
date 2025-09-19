@@ -69,18 +69,8 @@ export class DirectoryRepository {
       };
     }
 
-    const where: Prisma.AccountWhereInput = {
-      role: 'warehouse'
-    };
-
-    if (normalized.q) {
-      const orFilters: Prisma.AccountWhereInput[] = [
-        { accountAddress: { contains: normalized.q } },
-        { profileUri: { contains: normalized.q } }
-      ];
-      where.OR = orFilters;
-    }
-
+    // PoC: fetch all warehouse accounts, perform q/name/area filtering after aggregation
+    const where: Prisma.AccountWhereInput = { role: 'warehouse' };
     const accounts = await this.prisma.account.findMany({ where });
     const addresses = accounts.map((account) => account.accountAddress.toLowerCase());
 
@@ -166,6 +156,14 @@ export class DirectoryRepository {
 
   private applyFilters(items: WarehouseComputed[], options: ReturnType<typeof this.normalizeOptions>): WarehouseComputed[] {
     return items.filter((item) => {
+      if (options.q) {
+        const q = options.q;
+        const name = item.name?.toLowerCase() ?? '';
+        const address = item.address?.toLowerCase?.() ?? '';
+        const areas = (item.serviceAreas ?? []).map((a) => a.toLowerCase());
+        const hit = name.includes(q) || address.includes(q) || areas.some((a) => a.includes(q));
+        if (!hit) return false;
+      }
       if (options.available && item.availability !== 'available') {
         return false;
       }

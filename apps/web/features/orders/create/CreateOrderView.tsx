@@ -21,7 +21,7 @@ import {
   formatSubunitsToApt,
   OCTA_PER_APT
 } from '@shared/dto/orders';
-import { fetchOrderDetail, fetchOrderSummaries, fetchWarehouses } from '../../../lib/api/orders';
+import { attachDraftTransaction, fetchOrderDetail, fetchOrderSummaries, fetchWarehouses } from '../../../lib/api/orders';
 import { hexToBytes } from '../../../lib/crypto/hex';
 import { useSearchParams } from 'next/navigation';
 import { NetworkGuard } from '../../../lib/wallet/network-guard';
@@ -371,7 +371,7 @@ export function CreateOrderView() {
   const refreshOrders = useCallback(async () => {
     try {
       const list = await fetchOrderSummaries();
-      setOrderList(list);
+      setOrderList(list.data);
     } catch (error) {
       console.warn('[HaiGo] failed to refresh order list', error);
     }
@@ -408,6 +408,10 @@ export function CreateOrderView() {
 
         const explorerUrl = buildExplorerUrl(txnHash, networkStatus.expected);
         setTransactionState({ stage: 'pending', hash: txnHash, explorerUrl });
+        // If we have a draft UID, bind the txn hash so the listener can merge on-chain state into the draft row.
+        if (draftRecordUid) {
+          void attachDraftTransaction(draftRecordUid, txnHash).catch(() => void 0);
+        }
         setOptimisticOrder({
           transactionHash: txnHash,
           orderId: Date.now(),
@@ -502,16 +506,16 @@ export function CreateOrderView() {
                 </header>
                 <dl className="warehouse-card__metrics">
                   <div>
-                    <dt>Staking信用</dt>
+                    <dt>Staking Credit</dt>
                     <dd>{warehouse.stakingScore.toLocaleString()}</dd>
                   </div>
                   <div>
-                    <dt>信用限额</dt>
+                    <dt>Credit Capacity</dt>
                     <dd>{warehouse.creditCapacity.toLocaleString()} APT</dd>
                   </div>
                   {warehouse.insuranceCoverage && (
                     <div>
-                      <dt>保险覆盖</dt>
+                      <dt>Insurance Coverage</dt>
                       <dd>{warehouse.insuranceCoverage}</dd>
                     </div>
                   )}

@@ -170,4 +170,25 @@ describe('DirectoryRepository', () => {
     expect(warehouse?.name).toMatch(/Warehouse/i);
     expect(typeof warehouse?.stakingScore).toBe('number');
   });
+
+  it('filters by q against Hasura name (post-aggregation)', async () => {
+    const { repo } = createRepository();
+    const result = await list(repo, { q: 'alpha' });
+    expect(result.total).toBe(1);
+    expect(result.items[0].address.toLowerCase()).toBe('0xaaa1');
+  });
+
+  it('filters by q against serviceAreas (post-aggregation)', async () => {
+    const { repo } = createRepository();
+    const result = await list(repo, { q: 'north' });
+    expect(result.total).toBe(1);
+    expect(result.items[0].address.toLowerCase()).toBe('0xaaa1');
+  });
+
+  it('returns empty when q has no matches', async () => {
+    const { repo } = createRepository();
+    const result = await list(repo, { q: 'no-such-term' });
+    expect(result.total).toBe(0);
+    expect(result.items).toHaveLength(0);
+  });
 });

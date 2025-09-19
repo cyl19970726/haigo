@@ -10,6 +10,9 @@ export class MetricsService {
   private directoryCacheHitTotal = 0;
   private directoryErrorTotal = 0;
   private directoryLastLatencyMs = 0;
+  private ordersInboxRequestTotal = 0;
+  private ordersInboxErrorTotal = 0;
+  private ordersInboxLastLatencyMs = 0;
 
   setOrderListenerLastVersion(v: bigint) {
     this.orderListenerLastVersion = v;
@@ -41,6 +44,17 @@ export class MetricsService {
     this.directoryErrorTotal += 1;
   }
 
+  recordOrdersInboxRequest(payload: { latencyMs: number }) {
+    this.ordersInboxRequestTotal += 1;
+    if (Number.isFinite(payload.latencyMs)) {
+      this.ordersInboxLastLatencyMs = payload.latencyMs;
+    }
+  }
+
+  recordOrdersInboxError() {
+    this.ordersInboxErrorTotal += 1;
+  }
+
   renderPrometheus(): string {
     const lines: string[] = [];
     lines.push('# HELP order_listener_last_version Last processed transaction version by OrdersEventListener');
@@ -67,6 +81,15 @@ export class MetricsService {
     lines.push('# HELP directory_request_latency_ms Last observed directory request latency in milliseconds');
     lines.push('# TYPE directory_request_latency_ms gauge');
     lines.push(`directory_request_latency_ms ${this.directoryLastLatencyMs}`);
+    lines.push('# HELP orders_inbox_request_total Total warehouse orders inbox API requests processed');
+    lines.push('# TYPE orders_inbox_request_total counter');
+    lines.push(`orders_inbox_request_total ${this.ordersInboxRequestTotal}`);
+    lines.push('# HELP orders_inbox_error_total Orders inbox API errors encountered');
+    lines.push('# TYPE orders_inbox_error_total counter');
+    lines.push(`orders_inbox_error_total ${this.ordersInboxErrorTotal}`);
+    lines.push('# HELP orders_inbox_request_latency_ms Last observed orders inbox request latency in milliseconds');
+    lines.push('# TYPE orders_inbox_request_latency_ms gauge');
+    lines.push(`orders_inbox_request_latency_ms ${this.ordersInboxLastLatencyMs}`);
     return lines.join('\n') + '\n';
   }
 }

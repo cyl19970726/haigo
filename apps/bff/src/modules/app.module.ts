@@ -9,6 +9,7 @@ import { OrdersModule } from './orders/orders.module.js';
 import { MetricsModule } from './metrics/metrics.module.js';
 import { StakingModule } from './staking/staking.module.js';
 import { DirectoryModule } from './directory/directory.module.js';
+import { AuthSessionModule } from './auth-session/auth-session.module.js';
 
 @Module({
   imports: [
@@ -26,7 +27,8 @@ import { DirectoryModule } from './directory/directory.module.js';
     MetricsModule,
     OrdersModule,
     StakingModule,
-    DirectoryModule
+    DirectoryModule,
+    AuthSessionModule
   ]
 })
 export class AppModule {}

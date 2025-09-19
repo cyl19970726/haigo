@@ -32,5 +32,6 @@ export default () => ({
   },
   directory: {
     cacheTtlMs: Number(process.env.DIRECTORY_CACHE_TTL_MS) || 30_000
-  }
+  },
+  enableOrderListener: String(process.env.ENABLE_ORDER_LISTENER ?? 'true').toLowerCase() === 'true'
 });

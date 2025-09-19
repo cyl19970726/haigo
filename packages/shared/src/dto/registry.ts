@@ -41,9 +41,24 @@ export interface AccountResponse {
     value: string; // 64-character lowercase hex
   };
   registeredAt: string; // ISO 8601 timestamp
-  isVerified: boolean; // Additional field for business logic
   profileUri?: string;
   orderCount?: number;
+  isVerified?: boolean;
+}
+
+// Transitional shape returned by older services (uses `algo` key)
+export interface LegacyAccountResponse {
+  address: string;
+  role: 'seller' | 'warehouse';
+  profileHash: {
+    algo?: 'blake3';
+    algorithm?: 'blake3';
+    value: string;
+  };
+  registeredAt: string;
+  profileUri?: string | null;
+  orderCount?: number | null;
+  isVerified?: boolean;
 }
 
 // Unified profile representation consumed across frontends
@@ -51,13 +66,37 @@ export interface AccountProfile {
   address: string;
   role: 'seller' | 'warehouse';
   profileHash: {
-    algo: 'blake3';
+    algorithm: 'blake3';
     value: string;
   };
   profileUri?: string;
   registeredAt: string;
   orderCount?: number;
+  isVerified?: boolean;
 }
+
+export const normalizeAccountResponse = (
+  payload: AccountResponse | LegacyAccountResponse | null | undefined
+): AccountProfile | null => {
+  if (!payload) {
+    return null;
+  }
+
+  const algorithm = payload.profileHash.algorithm ?? payload.profileHash.algo ?? 'blake3';
+
+  return {
+    address: payload.address.toLowerCase(),
+    role: payload.role,
+    profileHash: {
+      algorithm,
+      value: payload.profileHash.value.toLowerCase()
+    },
+    profileUri: payload.profileUri ?? undefined,
+    registeredAt: payload.registeredAt,
+    orderCount: payload.orderCount ?? undefined,
+    isVerified: payload.isVerified
+  };
+};
 
 // Registration request format for frontend/API
 export interface RegisterAccountRequest {

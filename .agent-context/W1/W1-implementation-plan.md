@@ -375,6 +375,11 @@ pnpm --filter @haigo/bff prisma migrate dev -n add_staking_tables
 pnpm --filter @haigo/bff prisma:migrate:deploy
 ```
 
+故障自检（debug-001）：
+- 现象：BFF 启动时报错 `The table public.staking_positions does not exist`；
+- 根因：未执行迁移创建 `staking_positions`/`storage_fees_cache`；
+- 修复：执行上述迁移命令；为降低阻断，本迭代已在 `StakingRepository` 增加 Prisma `P2021` 容错（游标读取返回 null、upsert 写入记录 warn 后跳过），以保证未迁移时不致崩溃。
+
 服务运行：
 ```bash
 pnpm --filter @haigo/shared build

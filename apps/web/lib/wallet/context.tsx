@@ -38,6 +38,7 @@ export interface WalletContextValue {
   aptos: Aptos;
   signAndSubmitTransaction: ReturnType<typeof useWallet>['signAndSubmitTransaction'];
   signTransaction: ReturnType<typeof useWallet>['signTransaction'];
+  signMessage: ReturnType<typeof useWallet>['signMessage'];
 }
 
 const WalletContext = createContext<WalletContextValue | undefined>(undefined);
@@ -79,7 +80,8 @@ const WalletContextBridge = ({ children }: { children: ReactNode }) => {
     wallets,
     network,
     signAndSubmitTransaction,
-    signTransaction
+    signTransaction,
+    signMessage
   } = useWallet();
 
   const [connectionError, setConnectionError] = useState<string>();
@@ -156,7 +158,8 @@ const WalletContextBridge = ({ children }: { children: ReactNode }) => {
     connectionError,
     aptos,
     signAndSubmitTransaction,
-    signTransaction
+    signTransaction,
+    signMessage
   };
 
   return <WalletContext.Provider value={value}>{children}</WalletContext.Provider>;

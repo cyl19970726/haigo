@@ -17,6 +17,9 @@ importers:
 
   apps/bff:
     dependencies:
+      '@aptos-labs/ts-sdk':
+        specifier: ^5.0.0
+        version: 5.0.0(got@11.8.6)
       '@haigo/shared':
         specifier: workspace:*
         version: link:../../packages/shared

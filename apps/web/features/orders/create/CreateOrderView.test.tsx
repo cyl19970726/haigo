@@ -1,7 +1,7 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { WarehouseSummary } from '@shared/dto/orders';
+import type { OrderSummaryDto, WarehouseSummary } from '@shared/dto/orders';
 import type { WalletContextValue } from '../../../lib/wallet/context';
 import { CreateOrderView } from './CreateOrderView';
 
@@ -10,6 +10,17 @@ declare const global: typeof globalThis & { fetch: ReturnType<typeof vi.fn> };
 const mockFetchWarehouses = vi.fn();
 const mockFetchOrderDetail = vi.fn();
 const mockFetchOrderSummaries = vi.fn();
+
+const buildOrderSummariesResponse = (items: OrderSummaryDto[] = []) => ({
+  data: items,
+  meta: {
+    page: 1,
+    pageSize: Math.max(items.length, 1),
+    total: items.length,
+    generatedAt: new Date().toISOString(),
+    filters: {}
+  }
+});
 
 let searchParams = new URLSearchParams();
 
@@ -66,7 +77,8 @@ const walletContext: WalletContextValue = {
     }
   } as unknown as WalletContextValue['aptos'],
   signAndSubmitTransaction: signAndSubmit,
-  signTransaction: vi.fn()
+  signTransaction: vi.fn(),
+  signMessage: vi.fn()
 };
 
 const contextRef: { current: WalletContextValue } = {
@@ -94,7 +106,8 @@ const resetMocks = () => {
         simulate: { simple: transactionSimulate },
         getTransactionByHash: transactionGetByHash
       }
-    } as unknown as WalletContextValue['aptos']
+    } as unknown as WalletContextValue['aptos'],
+    signMessage: vi.fn()
   };
 };
 
@@ -116,7 +129,7 @@ beforeEach(() => {
     }
   ] as WarehouseSummary[]);
   mockFetchOrderDetail.mockResolvedValue(null);
-  mockFetchOrderSummaries.mockResolvedValue([]);
+  mockFetchOrderSummaries.mockResolvedValue(buildOrderSummariesResponse());
 });
 
 describe('CreateOrderView', () => {

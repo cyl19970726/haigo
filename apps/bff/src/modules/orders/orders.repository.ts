@@ -1,7 +1,9 @@
 import { Injectable } from '@nestjs/common';
-import { PrismaService } from '../../infrastructure/prisma/prisma.service.js';
+import type { Prisma } from '@prisma/client';
 import type { OrderDetailDto, OrderSummaryDto } from '@haigo/shared/dto/orders';
+import { PrismaService } from '../../infrastructure/prisma/prisma.service.js';
 import type { CreateOrderDraftDto } from './dto/create-order-draft.dto.js';
+import type { ListSummariesOptions, ListSummariesResult } from './types/list-summaries.js';
 
 @Injectable()
 export class OrdersRepository {
@@ -30,34 +32,64 @@ export class OrdersRepository {
     orderId: number; seller: string; warehouse: string; logisticsInbound?: string | null;
     pricing: { amount: number; insuranceFee: number; platformFee: number; total: number };
   }): Promise<void> {
-    const recordUid = `order-${evt.orderId}${evt.txnHash ? `-${String(evt.txnHash).slice(2, 10)}` : ''}`;
-    await this.prisma.order.upsert({
-      where: { recordUid },
-      create: {
-        recordUid,
-        creatorAddress: evt.seller.toLowerCase(),
-        warehouseAddress: evt.warehouse.toLowerCase(),
-        status: 'ONCHAIN_CREATED' as any,
-        orderId: evt.orderId,
-        txnVersion: evt.txnVersion,
-        eventIndex: evt.eventIndex,
-        txnHash: evt.txnHash ?? null,
-        chainTimestamp: evt.chainTimestamp ?? null
-      },
-      update: {
-        status: 'ONCHAIN_CREATED' as any,
-        orderId: evt.orderId,
-        txnVersion: evt.txnVersion,
-        eventIndex: evt.eventIndex,
-        txnHash: evt.txnHash ?? null,
-        chainTimestamp: evt.chainTimestamp ?? null
+    // Prefer merging into an existing draft row if txnHash is known and attached
+    let targetRecordUid: string | null = null;
+    if (evt.txnHash) {
+      const existing = await this.prisma.order.findFirst({ where: { txnHash: evt.txnHash } });
+      if (existing?.recordUid) {
+        targetRecordUid = existing.recordUid;
+        await this.prisma.order.update({
+          where: { recordUid: targetRecordUid },
+          data: {
+            status: 'ONCHAIN_CREATED' as any,
+            creatorAddress: evt.seller.toLowerCase(),
+            warehouseAddress: evt.warehouse.toLowerCase(),
+            orderId: evt.orderId,
+            txnVersion: evt.txnVersion,
+            eventIndex: evt.eventIndex,
+            chainTimestamp: evt.chainTimestamp ?? null
+          }
+        });
       }
-    });
+    }
+
+    if (!targetRecordUid) {
+      // Fallback: create or update by deterministic on-chain UID
+      const fallbackUid = `order-${evt.orderId}${evt.txnHash ? `-${String(evt.txnHash).slice(2, 10)}` : ''}`;
+      targetRecordUid = fallbackUid;
+      await this.prisma.order.upsert({
+        where: { recordUid: targetRecordUid },
+        create: {
+          recordUid: targetRecordUid,
+          creatorAddress: evt.seller.toLowerCase(),
+          warehouseAddress: evt.warehouse.toLowerCase(),
+          status: 'ONCHAIN_CREATED' as any,
+          orderId: evt.orderId,
+          txnVersion: evt.txnVersion,
+          eventIndex: evt.eventIndex,
+          txnHash: evt.txnHash ?? null,
+          chainTimestamp: evt.chainTimestamp ?? null
+        },
+        update: {
+          status: 'ONCHAIN_CREATED' as any,
+          orderId: evt.orderId,
+          txnVersion: evt.txnVersion,
+          eventIndex: evt.eventIndex,
+          txnHash: evt.txnHash ?? null,
+          chainTimestamp: evt.chainTimestamp ?? null
+        }
+      });
+    }
 
     await this.prisma.orderEvent.upsert({
-      where: { txnVersion_eventIndex: { txnVersion: evt.txnVersion as unknown as bigint, eventIndex: evt.eventIndex as unknown as bigint } as any },
+      where: {
+        txnVersion_eventIndex: {
+          txnVersion: evt.txnVersion as unknown as bigint,
+          eventIndex: evt.eventIndex as unknown as bigint
+        } as any
+      },
       create: {
-        recordUid,
+        recordUid: targetRecordUid,
         orderId: evt.orderId,
         type: 'OrderCreated',
         txnVersion: evt.txnVersion as unknown as bigint,
@@ -73,26 +105,123 @@ export class OrdersRepository {
     });
   }
 
-  async listSummaries(filter?: { sellerAddress?: string }): Promise<OrderSummaryDto[]> {
-    const where = filter?.sellerAddress ? { creatorAddress: filter.sellerAddress.toLowerCase() } : {};
-    const items = await this.prisma.order.findMany({ where, orderBy: [{ createdAt: 'desc' }] });
-    return items.map((o) => ({
-      recordUid: o.recordUid,
-      orderId: Number(o.orderId ?? 0),
-      status: (o.status.replace('ONCHAIN_', '') as any) ?? 'PENDING',
-      warehouseAddress: o.warehouseAddress,
-      pricing: {
-        amountSubunits: Number((o as any).amountSubunits ?? 0),
-        insuranceFeeSubunits: Number((o as any).insuranceFeeSubunits ?? 0),
-        platformFeeSubunits: Number((o as any).platformFeeSubunits ?? 0),
-        totalSubunits: Number((o as any).totalSubunits ?? 0),
-        currency: 'APT',
-        precision: 100_000_000
-      },
-      createdAt: (o.createdAt ?? new Date()).toISOString(),
-      updatedAt: (o.updatedAt ?? new Date()).toISOString(),
-      transactionHash: o.txnHash ?? undefined
-    }));
+  private mapStatus(status: string): OrderSummaryDto['status'] {
+    switch (status) {
+      case 'ORDER_DRAFT':
+        return 'PENDING';
+      case 'ONCHAIN_CREATED':
+        return 'CREATED';
+      case 'WAREHOUSE_IN':
+        return 'WAREHOUSE_IN';
+      case 'IN_STORAGE':
+        return 'IN_STORAGE';
+      case 'WAREHOUSE_OUT':
+        return 'WAREHOUSE_OUT';
+      default:
+        return 'PENDING';
+    }
+  }
+
+  private toPricing(value: any): OrderSummaryDto['pricing'] {
+    const p = value ?? {};
+    const precision = 100_000_000;
+    return {
+      amountSubunits: Number(p.amountSubunits ?? p.amount ?? 0),
+      insuranceFeeSubunits: Number(p.insuranceFeeSubunits ?? p.insurance_fee ?? p.insuranceFee ?? 0),
+      platformFeeSubunits: Number(p.platformFeeSubunits ?? p.platform_fee ?? p.platformFee ?? 0),
+      totalSubunits: Number(p.totalSubunits ?? p.total ?? 0),
+      currency: 'APT',
+      precision
+    };
+  }
+
+  private mapStatusFilter(status: OrderSummaryDto['status']): string[] {
+    switch (status) {
+      case 'PENDING':
+        return ['ORDER_DRAFT'];
+      case 'CREATED':
+        return ['ONCHAIN_CREATED'];
+      case 'WAREHOUSE_IN':
+        return ['WAREHOUSE_IN'];
+      case 'IN_STORAGE':
+        return ['IN_STORAGE'];
+      case 'WAREHOUSE_OUT':
+        return ['WAREHOUSE_OUT'];
+      default:
+        return ['ORDER_DRAFT'];
+    }
+  }
+
+  async listSummaries(options: ListSummariesOptions = {}): Promise<ListSummariesResult> {
+    const page = Math.max(options.page ?? 1, 1);
+    const pageSize = Math.min(Math.max(options.pageSize ?? 20, 1), 100);
+
+    const where: Prisma.OrderWhereInput = {};
+    if (options.sellerAddress) {
+      where.creatorAddress = options.sellerAddress.toLowerCase();
+    }
+    if (options.warehouseAddress) {
+      where.warehouseAddress = options.warehouseAddress.toLowerCase();
+    }
+    if (options.status) {
+      const statuses = this.mapStatusFilter(options.status);
+      where.status = statuses.length > 1 ? { in: statuses as any } : (statuses[0] as any);
+    }
+
+    const [total, orders] = await this.prisma.$transaction([
+      this.prisma.order.count({ where }),
+      this.prisma.order.findMany({
+        where,
+        orderBy: [{ createdAt: 'desc' }],
+        skip: (page - 1) * pageSize,
+        take: pageSize
+      })
+    ]);
+
+    const recordUids = orders.map((order) => order.recordUid);
+    const createdEvents = recordUids.length
+      ? await this.prisma.orderEvent.findMany({
+          where: { recordUid: { in: recordUids }, type: 'OrderCreated' },
+          orderBy: [{ txnVersion: 'desc' }, { eventIndex: 'desc' }]
+        })
+      : [];
+
+    const latestCreatedEventByRecordUid = new Map<string, (typeof createdEvents)[number]>();
+    for (const event of createdEvents) {
+      if (!latestCreatedEventByRecordUid.has(event.recordUid)) {
+        latestCreatedEventByRecordUid.set(event.recordUid, event);
+      }
+    }
+
+    const items: OrderSummaryDto[] = orders.map((order) => {
+      const payloadPricing = (order as any)?.payloadJson?.pricing;
+      const latestEvent = latestCreatedEventByRecordUid.get(order.recordUid);
+      const eventPricing = (latestEvent as any)?.data?.pricing;
+
+      const pricing = this.toPricing(
+        order.status === ('ORDER_DRAFT' as any)
+          ? payloadPricing ?? eventPricing
+          : eventPricing ?? payloadPricing
+      );
+
+      return {
+        recordUid: order.recordUid,
+        orderId: Number(order.orderId ?? 0),
+        status: this.mapStatus(order.status as any),
+        warehouseAddress: order.warehouseAddress,
+        pricing,
+        createdAt: (order.createdAt ?? new Date()).toISOString(),
+        updatedAt: (order.updatedAt ?? new Date()).toISOString(),
+        transactionHash: order.txnHash ?? undefined
+      } satisfies OrderSummaryDto;
+    });
+
+    return {
+      items,
+      total,
+      page,
+      pageSize
+    } satisfies ListSummariesResult;
   }
 
   async getDetail(recordUid: string): Promise<OrderDetailDto | null> {
@@ -100,19 +229,24 @@ export class OrdersRepository {
     if (!order) return null;
     const events = await this.prisma.orderEvent.findMany({ where: { recordUid }, orderBy: [{ txnVersion: 'asc' }] });
     const media = await this.prisma.mediaAsset.findMany({ where: { recordUid } });
+    // resolve pricing (draft payload or latest event)
+    let pricing = null as null | OrderSummaryDto['pricing'];
+    if ((order.status as any) === 'ORDER_DRAFT' && (order as any).payloadJson?.pricing) {
+      pricing = this.toPricing((order as any).payloadJson.pricing);
+    } else {
+      const latest = events
+        .slice()
+        .reverse()
+        .find((e) => e.type === 'OrderCreated');
+      pricing = this.toPricing((latest as any)?.data?.pricing ?? (order as any).payloadJson?.pricing);
+    }
+
     return {
       recordUid: order.recordUid,
       orderId: Number(order.orderId ?? 0),
-      status: (order.status.replace('ONCHAIN_', '') as any) ?? 'PENDING',
+      status: this.mapStatus(order.status as any),
       warehouseAddress: order.warehouseAddress,
-      pricing: {
-        amountSubunits: Number((order as any).amountSubunits ?? 0),
-        insuranceFeeSubunits: Number((order as any).insuranceFeeSubunits ?? 0),
-        platformFeeSubunits: Number((order as any).platformFeeSubunits ?? 0),
-        totalSubunits: Number((order as any).totalSubunits ?? 0),
-        currency: 'APT',
-        precision: 100_000_000
-      },
+      pricing: pricing ?? this.toPricing(null),
       createdAt: (order.createdAt ?? new Date()).toISOString(),
       updatedAt: (order.updatedAt ?? new Date()).toISOString(),
       transactionHash: order.txnHash ?? undefined,
@@ -136,5 +270,11 @@ export class OrdersRepository {
       }))
     };
   }
-}
 
+  async attachTransaction(recordUid: string, txnHash: string): Promise<void> {
+    await this.prisma.order.update({
+      where: { recordUid },
+      data: { txnHash }
+    });
+  }
+}

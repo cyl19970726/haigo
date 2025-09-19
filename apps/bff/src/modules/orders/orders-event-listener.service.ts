@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { OrdersService } from './orders.service.js';
 import { ORDERS_MODULE_ADDRESS, ORDERS_MODULE_NAME } from '@haigo/shared/config/aptos';
 import { MetricsService } from '../metrics/metrics.service.js';
+import { PrismaService } from '../../infrastructure/prisma/prisma.service.js';
 
 interface OrderCreatedRecord {
   transaction_version: string;
@@ -47,13 +48,15 @@ export class OrdersEventListener implements OnModuleInit, OnModuleDestroy {
   private readonly maxPagesPerTick: number;
   private readonly startFromLatest: boolean;
   private readonly backfillOffsetVersions: number;
+  private readonly enabled: boolean;
   private cooldownUntilMs = 0;
   private backoffMs = 0;
 
   constructor(
     private readonly config: ConfigService,
     private readonly orders: OrdersService,
-    private readonly metrics?: MetricsService
+    private readonly metrics?: MetricsService,
+    private readonly prisma?: PrismaService
   ) {
     this.indexerUrl = this.config.get<string>('indexerUrl', 'https://indexer.testnet.aptoslabs.com/v1/graphql');
     this.nodeApiUrl = this.config.get<string>('nodeApiUrl', 'https://fullnode.testnet.aptoslabs.com/v1');
@@ -71,9 +74,15 @@ export class OrdersEventListener implements OnModuleInit, OnModuleDestroy {
     this.backfillOffsetVersions = Number(
       process.env.ORDER_INGESTOR_BACKFILL_OFFSET_VERSIONS ?? this.config.get<number>('ingestion.backfillOffsetVersions', 0)
     );
+    this.enabled = String(process.env.ENABLE_ORDER_LISTENER ?? this.config.get<boolean>('enableOrderListener', true))
+      .toLowerCase() === 'true';
   }
 
   async onModuleInit(): Promise<void> {
+    if (!this.enabled) {
+      this.logger.log('OrdersEventListener disabled by configuration.');
+      return;
+    }
     await this.bootstrapCursor();
     await this.pollOnce();
     this.startPolling();
@@ -109,11 +118,17 @@ export class OrdersEventListener implements OnModuleInit, OnModuleDestroy {
       while (hasMore && pages < Math.max(1, this.maxPagesPerTick || 1)) {
         const batch = await this.fetchEvents(eventType);
         if (batch.length === 0) break;
+        let lastV = this.lastTxnVersion;
+        let lastI = this.lastEventIndex;
         for (const e of batch) {
           await this.processEvent(e);
+          lastV = BigInt(e.transaction_version);
+          lastI = BigInt(e.event_index);
         }
         hasMore = batch.length === this.pageSize;
         pages += 1;
+        // Persist cursor after each page
+        await this.saveCursor('orders_created', lastV, lastI);
         if (hasMore && pages < (this.maxPagesPerTick || 1)) {
           await new Promise((r) => setTimeout(r, 250));
         }
@@ -189,6 +204,19 @@ export class OrdersEventListener implements OnModuleInit, OnModuleDestroy {
   }
 
   private async bootstrapCursor(): Promise<void> {
+    // Try load from DB first
+    try {
+      const cursor = await this.prisma?.eventCursor.findUnique({ where: { streamName: 'orders_created' } });
+      if (cursor) {
+        this.lastTxnVersion = cursor.lastTxnVersion as unknown as bigint;
+        this.lastEventIndex = cursor.lastEventIndex as unknown as bigint;
+        this.logger.log(`Orders: loaded persisted cursor v=${this.lastTxnVersion} i=${this.lastEventIndex}`);
+        return;
+      }
+    } catch (e) {
+      this.logger.warn(`Orders: failed loading cursor: ${String(e)}`);
+    }
+
     if (this.startFromLatest) {
       const ledger = await this.fetchLatestLedgerVersion();
       const offset = BigInt(Math.max(0, this.backfillOffsetVersions || 0));
@@ -243,6 +271,18 @@ export class OrdersEventListener implements OnModuleInit, OnModuleDestroy {
     } catch (e) {
       this.logger.warn(`Fullnode fallback failed: ${String(e)}`);
       return null;
+    }
+  }
+
+  private async saveCursor(stream: string, v: bigint, i: bigint): Promise<void> {
+    try {
+      await this.prisma?.eventCursor.upsert({
+        where: { streamName: stream },
+        create: { streamName: stream, lastTxnVersion: v as unknown as bigint, lastEventIndex: i as unknown as bigint },
+        update: { lastTxnVersion: v as unknown as bigint, lastEventIndex: i as unknown as bigint }
+      });
+    } catch (e) {
+      this.logger.warn(`Orders: failed saving cursor: ${String(e)}`);
     }
   }
 }

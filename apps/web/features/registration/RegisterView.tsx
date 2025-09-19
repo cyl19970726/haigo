@@ -18,6 +18,7 @@ import { hashFileBlake3 } from '../../lib/crypto/blake3';
 import { NetworkGuard } from '../../lib/wallet/network-guard';
 import { useWalletContext } from '../../lib/wallet/context';
 import { useRouter } from 'next/navigation';
+import { ensureSession } from '../../lib/session/ensureSession';
 
 const ROLE_OPTIONS = [
   { value: 'seller', label: 'Seller' },
@@ -144,7 +145,8 @@ export function RegisterView() {
     refreshNetworkStatus,
     connectionError,
     aptos,
-    signAndSubmitTransaction
+    signAndSubmitTransaction,
+    signMessage
   } = useWalletContext();
 
   type SignAndSubmitTransactionInput = Parameters<typeof signAndSubmitTransaction>[0];
@@ -606,7 +608,7 @@ export function RegisterView() {
         const immediateProfile: AccountProfile = {
           address: accountAddress,
           role,
-          profileHash: { algo: 'blake3', value: activeHash },
+          profileHash: { algorithm: 'blake3', value: activeHash },
           profileUri: profileUri || cachedProfile?.profileUri,
           registeredAt: new Date().toISOString(),
           orderCount: accountInfo?.orderCount
@@ -664,18 +666,25 @@ export function RegisterView() {
   useEffect(() => {
     if (transactionState.stage !== 'success') return;
 
-    // Safety timer: if indexing is slow and profile not yet visible from BFF
     const timer = setTimeout(() => setShowRedirectCta(true), 60_000);
 
-    if (accountInfo?.role) {
+    if (accountInfo?.role && accountAddress) {
       const path = accountInfo.role === 'seller' ? '/dashboard/seller' : '/dashboard/warehouse';
-      setRedirectAnnounce('Registration succeeded, redirecting to your dashboard…');
-      // Small delay to allow screen readers to announce the message
-      setTimeout(() => router.push(path), 400);
+      void (async () => {
+        try {
+          await ensureSession(accountAddress, signMessage ?? undefined);
+          setRedirectAnnounce('Registration succeeded, redirecting to your dashboard…');
+          setTimeout(() => router.push(path), 400);
+        } catch (error) {
+          const message = error instanceof Error ? error.message : 'Automatic login failed. Use the dashboard button below.';
+          setRedirectAnnounce(message);
+          setShowRedirectCta(true);
+        }
+      })();
     }
 
     return () => clearTimeout(timer);
-  }, [transactionState.stage, accountInfo?.role, router]);
+  }, [transactionState.stage, accountInfo?.role, accountAddress, router, signMessage]);
 
   return (
     <main className="register-shell" aria-live="polite">

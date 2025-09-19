@@ -29,6 +29,20 @@ class MockOrdersPrismaService {
     },
     findUnique: async ({ where }: { where: any }) => {
       return (where?.recordUid && this.orders.get(where.recordUid)) || null;
+    },
+    findFirst: async ({ where }: { where?: any }) => {
+      const list = Array.from(this.orders.values());
+      if (!where) {
+        return list[0] ?? null;
+      }
+      return (
+        list.find((record) => {
+          if (where.txnHash) {
+            return record.txnHash === where.txnHash;
+          }
+          return false;
+        }) ?? null
+      );
     }
   };
 

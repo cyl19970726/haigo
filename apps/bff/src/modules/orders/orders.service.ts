@@ -3,6 +3,7 @@ import { ORDERS_MODULE_ADDRESS, ORDERS_MODULE_NAME, APTOS_COIN_TYPE } from '@hai
 import type { OrderDetailDto, OrderSummaryDto } from '@haigo/shared/dto/orders';
 import { OrdersRepository } from './orders.repository.js';
 import type { CreateOrderDraftDto, OrderDraftResponse } from './dto/create-order-draft.dto.js';
+import type { ListSummariesOptions, ListSummariesResult } from './types/list-summaries.js';
 
 @Injectable()
 export class OrdersService {
@@ -28,7 +29,7 @@ export class OrdersService {
     };
   }
 
-  async listSummaries(filter?: { sellerAddress?: string }): Promise<OrderSummaryDto[]> {
+  async listSummaries(filter?: ListSummariesOptions): Promise<ListSummariesResult> {
     return this.repo.listSummaries(filter);
   }
 
@@ -49,5 +50,8 @@ export class OrdersService {
   }): Promise<void> {
     await this.repo.upsertOnchainCreated(evt);
   }
-}
 
+  async attachDraftTransaction(recordUid: string, txnHash: string): Promise<void> {
+    await this.repo.attachTransaction(recordUid, txnHash);
+  }
+}

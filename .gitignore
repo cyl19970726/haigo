@@ -1,10 +1,40 @@
 # BMAD (local only)
 .bmad-core/
 .bmad-*/
+
+# Dependencies
 node_modules
-.next/
-dist/
-apps/*/dist/
 .pnpm-store/
+
+# Next.js build (ensure nested apps are ignored)
+.next/
+**/.next/
+apps/*/.next/
+
+# Build outputs
+dist/
+**/dist/
+apps/*/dist/
+
+# Move build artifacts
+move/build/
+
+# Aptos local config
 .aptos/
+
+# Env files (keep examples tracked)
 .env.local
+.env.*.local
+**/.env.local
+**/.env.*.local
+.env.local.*
+!.env.example
+
+# Logs and OS cruft
+*.log
+.DS_Store
+
+# Coverage / tooling caches (optional)
+coverage/
+.turbo/
+.vercel/
