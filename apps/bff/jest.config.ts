@@ -3,18 +3,18 @@ import type { Config } from 'jest';
 const config: Config = {
   roots: ['<rootDir>/src', '<rootDir>/test'],
   testEnvironment: 'node',
-  preset: 'ts-jest',
+  preset: 'ts-jest/presets/default-esm',
+  extensionsToTreatAsEsm: ['.ts'],
   testRegex: '.*\\.spec\\.ts$',
   moduleFileExtensions: ['ts', 'js', 'json'],
   moduleNameMapper: {
-    '^@shared/(.*)$': '<rootDir>/src/shared/$1'
+    '^@haigo/shared$': '<rootDir>/../packages/shared/src/index.ts',
+    '^@haigo/shared/(.*)$': '<rootDir>/../packages/shared/src/$1'
   },
   collectCoverageFrom: ['src/**/*.ts', '!src/main.ts'],
   setupFilesAfterEnv: ['<rootDir>/test/setup.ts'],
-  globals: {
-    'ts-jest': {
-      tsconfig: '<rootDir>/tsconfig.spec.json'
-    }
+  transform: {
+    '^.+\\.(t|j)s$': ['ts-jest', { useESM: true, tsconfig: '<rootDir>/tsconfig.spec.json' }]
   }
 };
 

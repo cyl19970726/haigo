@@ -1,8 +1,8 @@
 import { Module } from '@nestjs/common';
-import { AccountsRepository } from './accounts.repository';
-import { AccountsEventListener } from './event-listener.service';
-import { AccountsService } from './accounts.service';
-import { AccountsController } from './accounts.controller';
+import { AccountsRepository } from './accounts.repository.js';
+import { AccountsEventListener } from './event-listener.service.js';
+import { AccountsService } from './accounts.service.js';
+import { AccountsController } from './accounts.controller.js';
 
 @Module({
   providers: [AccountsRepository, AccountsEventListener, AccountsService],

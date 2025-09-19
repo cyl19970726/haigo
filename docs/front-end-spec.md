@@ -126,6 +126,116 @@ graph TD
 - Gas 估算使用钱包公开密钥模拟，失败时展示错误并保持原状态。
 - 交易入口函数由 `APTOS_MODULE_ADDRESS::registry::*` 常量驱动（来源 `packages/shared/src/config/aptos.ts`）。
 
+#### Implementation Anchors
+- 表单提交流程：`apps/web/features/registration/RegisterView.tsx:361`（见下方代码片段）。
+- 交易签名与区块确认：`apps/web/features/registration/RegisterView.tsx:562`。
+- API 客户端与哈希工具：`apps/web/lib/api/registration.ts:58/90`、`apps/web/lib/crypto/blake3.ts:9`。
+- 测试覆盖：`apps/web/lib/api/registration.test.ts:16`、`apps/web/features/registration/RegisterView.test.tsx:113`。
+
+```tsx
+// apps/web/features/registration/RegisterView.tsx:361
+const handleFormSubmit = async (event: FormEvent<HTMLFormElement>) => {
+  event.preventDefault();
+  if (!accountAddress) {
+    setUploadError('Connect your wallet before uploading documentation.');
+    return;
+  }
+  if (alreadyRegistered) {
+    setUploadError('This address is already registered.');
+    return;
+  }
+  if (cachedProfile && !selectedFile) {
+    setUploadResult({ recordUid: cachedProfile.recordUid, path: cachedProfile.storagePath, hash: cachedProfile.hash });
+    return;
+  }
+  if (!selectedFile || !fileMeta?.hash) {
+    setFileError('Upload a valid document before continuing.');
+    return;
+  }
+  setUploadError(null);
+  setIsUploading(true);
+  try {
+    const response = await uploadIdentityDocument({ file: selectedFile, address: accountAddress, role, hash: fileMeta.hash });
+    if (response.hash.value.toLowerCase() !== fileMeta.hash.toLowerCase()) {
+      throw new Error('Hash mismatch between client and server.');
+    }
+    setCachedProfile({
+      role,
+      hash: fileMeta.hash,
+      storagePath: response.path,
+      recordUid: response.recordUid,
+      fileName: fileMeta.name,
+      mime: fileMeta.mime,
+      sizeBytes: fileMeta.sizeBytes,
+      uploadedAt: new Date().toISOString(),
+      profileUri: profileUri || undefined,
+      notes: notes || undefined
+    });
+    setUploadResult({ recordUid: response.recordUid, path: response.path, hash: response.hash.value });
+    setSelectedFile(null);
+  } catch (error) {
+    setUploadError(error instanceof Error ? error.message : 'Failed to upload documentation.');
+  } finally {
+    setIsUploading(false);
+  }
+};
+
+// apps/web/features/registration/RegisterView.tsx:562
+const submitRegistration = useCallback(async () => {
+  if (!accountAddress) {
+    setTransactionState({ stage: 'failed', error: 'Connect your wallet before submitting.' });
+    return;
+  }
+  if (!activeHash) {
+    setTransactionState({ stage: 'failed', error: 'Upload documentation before signing the transaction.' });
+    return;
+  }
+  setTransactionState({ stage: 'submitting' });
+  try {
+    const transactionInput = buildRegisterTransactionInput(activeHash);
+    const transaction = simulationState.status === 'success' ? simulationState.transaction : await buildRegisterTransaction(activeHash);
+    const result = await signAndSubmitTransaction(transactionInput);
+    const txnHash =
+      typeof result === 'string'
+        ? result
+        : result?.hash ??
+          (typeof (result as any)?.transactionHash === 'string' ? (result as any).transactionHash : undefined) ??
+          (typeof (result as any)?.txnHash === 'string' ? (result as any).txnHash : undefined) ??
+          (typeof (result as any)?.result?.hash === 'string' ? (result as any).result.hash : undefined);
+    if (!txnHash) {
+      throw new Error('Wallet did not return a transaction hash.');
+    }
+    const explorerUrl = buildExplorerUrl(txnHash, networkStatus.expected);
+    setTransactionState({ stage: 'pending', hash: txnHash, explorerUrl });
+    try {
+      await pollTransaction(txnHash);
+      setTransactionState({ stage: 'success', hash: txnHash, explorerUrl });
+      setAccountInfo({
+        address: accountAddress,
+        role,
+        profileHash: { algo: 'blake3', value: activeHash },
+        profileUri: profileUri || cachedProfile?.profileUri,
+        registeredAt: new Date().toISOString(),
+        orderCount: accountInfo?.orderCount
+      });
+      void refreshAccountInfo();
+    } catch (pollError) {
+      setTransactionState({
+        stage: 'failed',
+        hash: txnHash,
+        explorerUrl,
+        error: pollError instanceof Error ? pollError.message : 'Failed to confirm transaction.'
+      });
+    }
+  } catch (error) {
+    setTransactionState({
+      stage: 'failed',
+      error: error instanceof Error ? error.message : 'Wallet submission failed.'
+    });
+  }
+}, [accountAddress, activeHash, buildRegisterTransactionInput, cachedProfile, networkStatus.expected, pollTransaction, profileUri, refreshAccountInfo, role, signAndSubmitTransaction, simulationState.status, accountInfo?.orderCount]);
+```
+
 ### 商家创建并支付订单
 **Status:** Planned (Epic 2).
 **User Goal:** 商家完成仓库选择并一次性支付仓储费与保险费，获取链上记录。
@@ -154,6 +264,157 @@ flowchart TD
 - Aptos 交易失败 → 展示错误原因与重试入口。
 
 **Notes:** 在费用确认步骤提前展示 Gas 预估；签名成功后提供区块浏览器链接与“复制哈希”操作。
+
+## Anchor Code Reference（核心实现锚点）
+以下代码片段描述前端关键流程（订单出库、质押、信用榜、理赔、保险费率）的核心组件与 API 调用。它们作为 Epic 2.4–3.x 的统一锚点，应与架构文档及共享 DTO 保持一致。
+
+### 出库流程（Story 2.4）
+```tsx
+// apps/web/features/orders/outbound/schema.ts
+export const outboundSchema = z.object({
+  logisticsNo: z.string().min(1),
+  mediaFiles: z.array(mediaFileSchema).min(1),
+  memo: z.string().max(200).optional(),
+});
+
+// apps/web/features/orders/outbound/hash-media.ts
+export async function hashMedia(files: File[]): Promise<string[]> {
+  const results: string[] = [];
+  for (const file of files) {
+    const buffer = await file.arrayBuffer();
+    const blake3 = await computeBlake3(buffer);
+    const keccak = await computeKeccak256(buffer);
+    results.push(`${blake3}:${keccak}`);
+  }
+  return results;
+}
+
+// apps/web/features/orders/outbound/api.ts
+export async function checkOut(payload: CheckOutPayload) {
+  await wallet.signAndSubmitTransaction({
+    type: "entry_function_payload",
+    function: "haigo::orders::check_out",
+    arguments: [payload.recordUid, payload.logisticsNo, payload.mediaHashes, payload.memo ?? ""],
+  });
+}
+```
+
+### 质押控制台（Story 3.1）
+```tsx
+// apps/web/features/staking/api.ts
+export const stakingApi = {
+  getSummary: (warehouseAddress: string) => client.get<StakingSummaryDto>(`/api/staking/${warehouseAddress}`),
+  stake: (input: StakePayload) => wallet.signAndSubmitTransaction({
+    type: "entry_function_payload",
+    function: "haigo::staking::stake",
+    arguments: [input.amount, input.metadata],
+    type_arguments: [input.coinType],
+  }),
+  unstake: (input: StakePayload) => wallet.signAndSubmitTransaction({
+    type: "entry_function_payload",
+    function: "haigo::staking::unstake",
+    arguments: [input.amount],
+    type_arguments: [input.coinType],
+  }),
+};
+
+// apps/web/features/staking/components/StakeHistoryChart.tsx
+export function StakeHistoryChart({ data }: { data: StakeHistoryPoint[] }) {
+  return <ResponsiveLine data={formatHistory(data)} axisLeft={stakeAxis} colors={stakeColors} />;
+}
+```
+
+### 信用评分与榜单（Story 3.2）
+```tsx
+// apps/web/features/credit/api.ts
+export const creditApi = {
+  list: (query: CreditBoardQuery) => client.get<Paginated<CreditScoreRow>>("/api/credit-scores", { params: query }),
+  logs: (warehouse: string) => client.get<CreditScoreLogDto[]>(`/api/credit-scores/${warehouse}/logs`),
+};
+
+// apps/web/features/credit/components/CreditTrendDrawer.tsx
+export function CreditTrendDrawer({ warehouse, open, onOpenChange }: Props) {
+  const { data } = useCreditLogs(warehouse, { enabled: open });
+  return (
+    <Drawer open={open} onOpenChange={onOpenChange}>
+      <DrawerContent>
+        <Timeline items={data?.map(logToItem) ?? []} />
+      </DrawerContent>
+    </Drawer>
+  );
+}
+```
+
+### 理赔申请与审批（Story 3.3）
+```tsx
+// apps/web/features/claims/api.ts
+export const claimsApi = {
+  open: (dto: OpenClaimDto) => client.post<ApiResponse<ClaimSummaryDto>>("/api/claims", dto),
+  resolve: (claimId: string, dto: ResolveClaimDto) => client.post<ApiResponse<ClaimSummaryDto>>(`/api/claims/${claimId}/resolve`, dto),
+  timeline: (recordUid: string) => client.get<ClaimTimelineEntry[]>(`/api/orders/${recordUid}/claims/timeline`),
+};
+
+// apps/web/features/claims/components/ClaimTimeline.tsx
+export function ClaimTimeline({ recordUid }: { recordUid: string }) {
+  const { data } = useClaimTimeline(recordUid);
+  return <Timeline items={data?.map(claimTimelineItem) ?? []} variant="claims" />;
+}
+```
+
+### 保险费率与费用拆解（Story 3.4）
+```tsx
+// apps/web/features/orders/create/api.ts
+export const insuranceApi = {
+  getEffectiveRate: (warehouse: string) => client.get<InsuranceRateDto>(`/api/insurance/rates/${warehouse}`),
+};
+
+// apps/web/features/orders/create/context.tsx
+export const PricingContext = createContext<PricingSummary | null>(null);
+
+export function PricingProvider({ recordUid, children }: PropsWithChildren<{ recordUid: string }>) {
+  const summary = usePricing(recordUid);
+  return <PricingContext.Provider value={summary}>{children}</PricingContext.Provider>;
+}
+```
+
+### 跨模块工作流
+```tsx
+// apps/web/lib/workflows/index.ts
+export async function buildFulfilmentContext(recordUid: string): Promise<FulfilmentContext> {
+  const [order, rate, credit] = await Promise.all([
+    ordersApi.getDetail(recordUid),
+    insuranceApi.getEffectiveRate(order.warehouseAddress),
+    creditApi.logs(order.warehouseAddress),
+  ]);
+  if (order.insuranceBlocked) {
+    throw new BlockingError("ORDER_INSURANCE_BLOCKED");
+  }
+  return { order, rate, credit };
+}
+```
+
+### API DTO 锚点
+```ts
+// packages/shared/src/dto/credit.ts
+export interface CreditScoreRow {
+  warehouseAddress: string;
+  score: number;
+  stakeAmount: number;
+  completionRate: number;
+  lastUpdatedAt: string;
+}
+
+// packages/shared/src/dto/claims.ts
+export interface ClaimSummaryDto {
+  claimId: string;
+  status: "PENDING" | "APPROVED" | "REJECTED";
+  payoutAmount: string;
+  openedAt: string;
+  resolvedAt?: string;
+}
+```
+
+> **实施提示**：锚点中的路径、命名与函数签名为前端实现的最低标准。开发时应围绕这些 API 和组件扩展细节，并在 Story 完成后更新本节保持对齐。
 
 ### 仓主处理入库与出库
 **Status:** Planned (Epic 2).

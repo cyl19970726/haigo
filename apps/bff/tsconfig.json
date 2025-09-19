@@ -1,17 +1,19 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "module": "commonjs",
+    "module": "NodeNext",
     "target": "ES2021",
     "outDir": "dist",
-    "baseUrl": "./src",
+    "baseUrl": ".",
     "emitDecoratorMetadata": true,
     "experimentalDecorators": true,
     "allowSyntheticDefaultImports": true,
-    "moduleResolution": "node",
+    "moduleResolution": "NodeNext",
     "types": ["node"],
     "paths": {
-      "@shared/*": ["shared/*"]
+      "@haigo/shared": ["../../packages/shared/src/index.ts"],
+      "@haigo/shared/config/*": ["../../packages/shared/src/config/*.ts"],
+      "@haigo/shared/dto/*": ["../../packages/shared/src/dto/*.ts"]
     }
   },
   "include": ["src"],

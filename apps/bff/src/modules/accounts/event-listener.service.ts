@@ -1,6 +1,6 @@
 import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { AccountsRepository, AccountUpsertInput } from './accounts.repository';
+import { AccountsRepository, AccountUpsertInput } from './accounts.repository.js';
 
 interface RegistrationEventRecord {
   transaction_version: string;
@@ -17,7 +17,7 @@ const REGISTRATION_EVENTS_QUERY = /* GraphQL */ `
     $eventTypes: [String!]
     $limit: Int!
     $cursorVersion: bigint!
-    $cursorEventIndex: Int!
+    $cursorEventIndex: bigint!
   ) {
     events(
       where: {
@@ -147,7 +147,7 @@ export class AccountsEventListener implements OnModuleInit, OnModuleDestroy {
           eventTypes: [this.sellerEventType, this.warehouseEventType],
           limit: this.pageSize,
           cursorVersion: this.lastTxnVersion.toString(),
-          cursorEventIndex: Number(this.lastEventIndex)
+          cursorEventIndex: this.lastEventIndex.toString()
         }
       })
     });

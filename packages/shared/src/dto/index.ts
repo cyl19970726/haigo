@@ -4,5 +4,5 @@ export interface WalletProfileDto {
 }
 
 // Registry DTOs
-export * from './registry';
-export * from './orders';
+export * from './registry.js';
+export * from './orders.js';

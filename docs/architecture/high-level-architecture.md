@@ -63,7 +63,7 @@ haigo/
 - **面向未来的扩展位**：预留 `packages/contracts`（封装 Move ABI）、`packages/tooling`（脚本与 CLI）等子包位置，保持 Monorepo 下横向扩展不破坏现有依赖图。
 - **构建顺序**：
   1. `packages/shared`: `tsc` 产出 `dist`，生成 `.js` 与 `.d.ts`。
-  2. `apps/bff`: `tsc` 基于 NodeNext 解析；运行时通过 Node 原生 ESM、`tsx`（开发态 watch）加载。
+  2. `apps/bff`: `tsc` 基于 NodeNext 解析；运行时通过 Node 原生 ESM（`node --loader ts-node/esm --watch`）加载。
   3. `apps/web`: Next.js 直接消费 `packages/shared/dist`，同时可通过 `tsconfig` paths 指向 `src` 以获得热更新。
 
 ### Boundary Matrix
@@ -78,7 +78,7 @@ haigo/
 - **NodeNext 配置**：所有 TypeScript 项目统一启用 `moduleResolution: "NodeNext"` 与 `.js` 扩展导出，避免 CJS/ESM 混用导致的运行时错误。
 - **路径映射**：各应用的 `tsconfig.json` 通过 `paths` 指向 `packages/shared/src`，开发态保持源码引用；构建态依赖编译后的 `dist/`。
 - **动态导入规范**：约定跨包动态导入必须使用相对 `.js` 后缀或 `exports` 映射，确保 Node 18+ 与 bundler 均可解析。
-- **工具链兼容性**：开发模式使用 `tsx watch`（基于 esbuild/Node ESM），避免 `ts-node-dev` 与 NodeNext 的兼容坑；生产构建统一通过 `tsc`，禁止使用 Babel 转译。
+- **工具链兼容性**：开发模式直接依赖 Node 18+ 的 `--loader ts-node/esm --watch`，保留 TypeScript 装饰器元数据；生产构建统一通过 `tsc`，禁止使用 Babel 转译。
 
 ### Workspace Scripts
 | 命令 | 描述 | 备注 |

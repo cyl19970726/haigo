@@ -1,11 +1,14 @@
 {
   "extends": "./tsconfig.json",
   "compilerOptions": {
+    "module": "ESNext",
+    "moduleResolution": "NodeNext",
     "types": ["node", "jest"],
     "esModuleInterop": true,
     "baseUrl": "./",
     "paths": {
-      "@shared/*": ["src/shared/*"]
+      "@haigo/shared": ["../../packages/shared/src/index.ts"],
+      "@haigo/shared/*": ["../../packages/shared/src/*"]
     }
   },
   "include": ["src", "test"]

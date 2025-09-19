@@ -4,11 +4,11 @@ import { Test } from '@nestjs/testing';
 import { blake3 } from '@noble/hashes/blake3';
 import { bytesToHex } from '@noble/hashes/utils';
 import request from 'supertest';
-import { PrismaService } from '../src/infrastructure/prisma/prisma.service';
-import { AccountsRepository } from '../src/modules/accounts/accounts.repository';
-import { AccountsController } from '../src/modules/accounts/accounts.controller';
-import { AccountsEventListener } from '../src/modules/accounts/event-listener.service';
-import { AccountsService } from '../src/modules/accounts/accounts.service';
+import { PrismaService } from '../src/infrastructure/prisma/prisma.service.js';
+import { AccountsRepository } from '../src/modules/accounts/accounts.repository.js';
+import { AccountsController } from '../src/modules/accounts/accounts.controller.js';
+import { AccountsEventListener } from '../src/modules/accounts/event-listener.service.js';
+import { AccountsService } from '../src/modules/accounts/accounts.service.js';
 import { MockPrismaService } from './utils/mock-prisma.service';
 
 describe('AccountsModule integration', () => {

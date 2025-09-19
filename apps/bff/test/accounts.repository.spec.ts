@@ -1,5 +1,5 @@
 import { AccountRole } from '@prisma/client';
-import { AccountsRepository, AccountUpsertInput } from '../src/modules/accounts/accounts.repository';
+import { AccountsRepository, AccountUpsertInput } from '../src/modules/accounts/accounts.repository.js';
 import { MockPrismaService } from './utils/mock-prisma.service';
 
 const createInput = (overrides: Partial<AccountUpsertInput> = {}): AccountUpsertInput => ({

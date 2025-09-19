@@ -3,8 +3,8 @@ import { ConfigService } from '@nestjs/config';
 import { blake3 } from '@noble/hashes/blake3';
 import { bytesToHex } from '@noble/hashes/utils';
 import type { Express } from 'express';
-import { AccountsRepository } from '../src/modules/accounts/accounts.repository';
-import { AccountsService } from '../src/modules/accounts/accounts.service';
+import { AccountsRepository } from '../src/modules/accounts/accounts.repository.js';
+import { AccountsService } from '../src/modules/accounts/accounts.service.js';
 import { MockPrismaService } from './utils/mock-prisma.service';
 
 const defaultConfig = {

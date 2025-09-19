@@ -1,0 +1,31 @@
+import { OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { AccountsRepository } from './accounts.repository.js';
+export declare class AccountsEventListener implements OnModuleInit, OnModuleDestroy {
+    private readonly configService;
+    private readonly accountsRepository;
+    private readonly logger;
+    private pollHandle;
+    private isPolling;
+    private lastTxnVersion;
+    private lastEventIndex;
+    private readonly sellerEventType;
+    private readonly warehouseEventType;
+    private readonly indexerUrl;
+    private readonly pollingInterval;
+    private readonly pageSize;
+    constructor(configService: ConfigService, accountsRepository: AccountsRepository);
+    onModuleInit(): Promise<void>;
+    onModuleDestroy(): Promise<void>;
+    private startPolling;
+    private stopPolling;
+    private pollOnce;
+    private bootstrapCursor;
+    private fetchRegistrationEvents;
+    private processEvent;
+    private mapEventToAccount;
+    private extractRole;
+    private extractHashValue;
+    private ensureLowercaseHash;
+    private normalizeAddress;
+}

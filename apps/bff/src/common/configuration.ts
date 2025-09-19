@@ -9,5 +9,9 @@ export default () => ({
   ingestion: {
     pollingIntervalMs: Number(process.env.ACCOUNT_INGESTOR_INTERVAL_MS) || 30_000,
     pageSize: Number(process.env.ACCOUNT_INGESTOR_PAGE_SIZE) || 50
+  },
+  media: {
+    storageDir: process.env.MEDIA_STORAGE_DIR,
+    publicPrefix: process.env.MEDIA_PUBLIC_PREFIX || '/media'
   }
 });

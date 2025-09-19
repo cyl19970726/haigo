@@ -13,7 +13,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { Request, Response } from 'express';
 import { randomUUID } from 'node:crypto';
 import { memoryStorage } from 'multer';
-import { AccountsService } from './accounts.service';
+import { AccountsService } from './accounts.service.js';
 import type { Express } from 'express';
 
 interface ResponseMeta {

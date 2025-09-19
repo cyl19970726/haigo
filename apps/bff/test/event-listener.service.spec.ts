@@ -1,6 +1,6 @@
 import { ConfigService } from '@nestjs/config';
-import { AccountsRepository } from '../src/modules/accounts/accounts.repository';
-import { AccountsEventListener } from '../src/modules/accounts/event-listener.service';
+import { AccountsRepository } from '../src/modules/accounts/accounts.repository.js';
+import { AccountsEventListener } from '../src/modules/accounts/event-listener.service.js';
 import { MockPrismaService } from './utils/mock-prisma.service';
 
 describe('AccountsEventListener', () => {

@@ -1,8 +1,8 @@
 import { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
-import { AccountsController } from '../src/modules/accounts/accounts.controller';
-import { AccountsService } from '../src/modules/accounts/accounts.service';
+import { AccountsController } from '../src/modules/accounts/accounts.controller.js';
+import { AccountsService } from '../src/modules/accounts/accounts.service.js';
 
 describe('AccountsController', () => {
   let app: INestApplication;

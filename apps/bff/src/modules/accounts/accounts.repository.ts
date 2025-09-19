@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Prisma, Account as AccountModel, AccountRole } from '@prisma/client';
-import { PrismaService } from '../../infrastructure/prisma/prisma.service';
+import { PrismaService } from '../../infrastructure/prisma/prisma.service.js';
 
 export interface AccountUpsertInput {
   accountAddress: string;

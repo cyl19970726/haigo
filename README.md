@@ -69,18 +69,28 @@ docs/
 - Aptos CLI (or rely on the Docker fallback)
 - pnpm 8 (enabled through Corepack)
 
-## Bootstrapping Local Development
-```bash
-scripts/setup-local.sh
-```
-The script will:
-1. Ensure `corepack` and `pnpm` are available.
-2. Verify the Aptos CLI is installed (set `SKIP_APTOS_CHECK=true` to use the Docker fallback).
-3. Copy `.env.example` to `.env.local` if missing.
-4. Install workspace dependencies across Move, backend, frontend, and shared packages.
-5. (Optional) Start Docker services when `START_DOCKER=true` is set.
+## Quick Start
+1. **Bootstrap the workspace**
+   ```bash
+   scripts/setup-local.sh
+   ```
+   - Ensures Corepack/pnpm are enabled, installs dependencies, and copies `.env.example → .env.local` when missing.
+   - Set `START_DOCKER=true` beforehand if you want the Postgres/Hasura stack (`docker/compose.poc.yml`) to auto-start.
+2. **Apply Prisma migrations & prepare media storage**
+   ```bash
+   export DATABASE_URL="postgres://haigo:haigo@localhost:5433/haigo"
+   pnpm --filter @haigo/bff prisma:migrate:deploy
+   mkdir -p storage/media
+   ```
+   This provisions the new `media_assets` table and ensures `MEDIA_STORAGE_DIR` points to a writable folder.
+3. **Run the services**
+   ```bash
+   pnpm --filter @haigo/bff start:dev   # BFF available on http://localhost:3001
+   pnpm --filter @haigo/web dev         # Web app on http://localhost:3000
+   ```
+4. **Verify** – open http://localhost:3000 in your browser and confirm media uploads hit the BFF (watch the terminal for `/api/media/uploads`).
 
-> Tip: export `START_DOCKER=true` if you want the script to run `docker compose up -d` using the forthcoming Compose file.
+> Need to rerun migrations later? Just repeat step 2 with the appropriate `DATABASE_URL`.
 
 ## Workspace Commands
 | Command | Description |
@@ -91,6 +101,7 @@ The script will:
 | `pnpm move:test` | Run Move unit tests via the Aptos CLI or Docker fallback (`APTOS_DOCKER_IMAGE` to override). |
 | `pnpm lint` | Execute linting across all packages. |
 | `pnpm test` | Run package test scripts (placeholders today). |
+| `pnpm --filter @haigo/bff prisma:migrate:deploy` | Apply Prisma migrations (requires `DATABASE_URL`). |
 | `pnpm build` | Build frontend and backend bundles. |
 
 ## Environment Variables
@@ -98,7 +109,8 @@ Configuration lives in `.env.local`. Copy from `.env.example` and adjust values 
 - `NEXT_PUBLIC_HASURA_URL` / `NEXT_PUBLIC_BFF_URL` for frontend connectivity.
 - `APTOS_INDEXER_URL` for on-chain data access.
 - `POSTGRES_*` for database credentials.
-- `MEDIA_ROOT` for local media storage mounted through Docker.
+- `MEDIA_STORAGE_DIR` for local media storage (defaults to `./storage/media`).
+- `MEDIA_PUBLIC_PREFIX` (optional) for exposing uploaded media through a static path (defaults to `/media`).
 
 ## Continuous Integration
 GitHub Actions workflow `ci.yml` runs on every push and pull request:

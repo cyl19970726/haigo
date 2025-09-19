@@ -2,7 +2,7 @@ import {
   ORDER_MEDIA_HASH_ALGORITHMS,
   ORDER_MEDIA_STAGES,
   ORDER_MEDIA_VERIFICATION_STATUSES
-} from '../config/orders';
+} from '../config/orders.js';
 
 export type WarehouseAvailability = 'available' | 'limited' | 'maintenance';
 
@@ -64,6 +64,7 @@ export interface OrderMediaAsset {
   sizeBytes?: number;
   mimeType?: string;
   storagePath?: string;
+  path?: string;
   uploadedBy?: string;
   uploadedAt?: string;
   matchedOffchain?: boolean;
@@ -71,6 +72,7 @@ export interface OrderMediaAsset {
   verificationAttempts?: number;
   lastVerificationAt?: string;
   lastVerificationError?: string;
+  hash?: { algo: string; value: string };
 }
 
 export interface OrderTimelineItemDto {

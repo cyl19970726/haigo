@@ -29,3 +29,28 @@ model Account {
   @@unique([txnVersion, eventIndex], map: "accounts_event_uniq")
   @@map("accounts")
 }
+
+
+model MediaAsset {
+  id              BigInt   @id @default(autoincrement())
+  recordUid       String   @map("record_uid")
+  stage           String
+  category        String
+  storagePath     String   @map("storage_path")
+  publicPath      String?  @map("public_path")
+  hashAlgo        String   @map("hash_algo")
+  hashValue       String   @map("hash_value")
+  mimeType        String?  @map("mime_type")
+  sizeBytes       Int?     @map("size_bytes")
+  uploadedBy      String?  @map("uploaded_by")
+  uploadedAt      DateTime @default(now()) @map("uploaded_at")
+  matchedOffchain Boolean  @default(false) @map("matched_offchain")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@unique([recordUid, storagePath], map: "media_assets_record_path_uniq")
+  @@index([recordUid], map: "media_assets_record_uid_idx")
+  @@index([hashValue], map: "media_assets_hash_value_idx")
+  @@map("media_assets")
+}
+

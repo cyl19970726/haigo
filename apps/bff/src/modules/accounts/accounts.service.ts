@@ -3,9 +3,9 @@ import { ConfigService } from '@nestjs/config';
 import { blake3 } from '@noble/hashes/blake3';
 import { bytesToHex } from '@noble/hashes/utils';
 import { Account as AccountModel, AccountRole } from '@prisma/client';
-import { AccountProfile } from '@shared/dto/registry';
+import { AccountProfile } from '@haigo/shared/dto/registry';
 import type { Express } from 'express';
-import { AccountsRepository } from './accounts.repository';
+import { AccountsRepository } from './accounts.repository.js';
 
 type AccountRoleLiteral = 'seller' | 'warehouse';
 
