@@ -5,8 +5,24 @@ import { PrismaModule } from '../infrastructure/prisma/prisma.module.js';
 import { AccountsModule } from './accounts/accounts.module.js';
 import { HealthModule } from './health/health.module.js';
 import { MediaModule } from './media/media.module.js';
+import { OrdersModule } from './orders/orders.module.js';
+import { MetricsModule } from './metrics/metrics.module.js';
 
 @Module({
-  imports: [ConfigModule.forRoot({ isGlobal: true, load: [configuration] }), PrismaModule, HealthModule, AccountsModule, MediaModule]
+  imports: [
+    ConfigModule.forRoot({
+      isGlobal: true,
+      load: [configuration],
+      // Support both root-level and app-level env files to reduce duplication.
+      // Precedence: later entries override earlier ones -> prefer repository root .env.local
+      envFilePath: ['apps/bff/.env', '.env', '.env.local', '../../.env', '../../.env.local']
+    }),
+    PrismaModule,
+    HealthModule,
+    AccountsModule,
+    MediaModule,
+    MetricsModule,
+    OrdersModule
+  ]
 })
 export class AppModule {}

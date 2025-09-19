@@ -3,12 +3,17 @@ declare const _default: () => {
     port: number;
     hasuraUrl: string;
     indexerUrl: string;
+    nodeApiUrl: string;
+    aptosApiKey: string;
     database: {
         url: string;
     };
     ingestion: {
         pollingIntervalMs: number;
         pageSize: number;
+        maxPagesPerTick: number;
+        startFromLatest: boolean;
+        backfillOffsetVersions: number;
     };
     media: {
         storageDir: string | undefined;

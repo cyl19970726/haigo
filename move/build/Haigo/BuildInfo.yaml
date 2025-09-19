@@ -12,10 +12,10 @@ compiled_package_info:
     std: "0000000000000000000000000000000000000000000000000000000000000001"
     vm: "0000000000000000000000000000000000000000000000000000000000000000"
     vm_reserved: "0000000000000000000000000000000000000000000000000000000000000000"
-  source_digest: C3866E0A5A2927ECE78B38B16D5C7D35945717D07357C576432CF2FF4448AC6A
+  source_digest: F5831D8561CCB8592806A83C9E7232DB5A833CD666613E2D87EC61C4403DFA58
   build_flags:
-    dev_mode: true
-    test_mode: true
+    dev_mode: false
+    test_mode: false
     override_std: ~
     generate_docs: false
     generate_abis: false
@@ -23,7 +23,8 @@ compiled_package_info:
     full_model_generation: true
     install_dir: ~
     force_recompilation: false
-    additional_named_addresses: {}
+    additional_named_addresses:
+      haigo: 00000000000000000000000000000000000000000000000000000000000a11ce
     fetch_deps_only: false
     skip_fetch_latest_git_deps: false
     compiler_config:

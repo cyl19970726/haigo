@@ -49,6 +49,7 @@ This document defines the user experience goals, information architecture, user 
 - 200MB 文档的 BLAKE3 哈希仍在主线程执行；`docs/stories/1.3.story.md` 的改进项要求后续使用 Web Worker。
 - QA 指出缺少端到端与无障碍自动化测试，详见 `docs/stories/1.3.story.md#qa-results`。
 - 订单、理赔等模块仍属未来迭代（Epic 2+）；下文以“Planned”标记尚未交付的流程。
+- 注册成功后的角色化重定向（新增）：当交易确认且从 BFF 读到注册资料后，自动跳转到 `/dashboard/seller` 或 `/dashboard/warehouse`。
 
 ## Information Architecture (IA)
 ### Site Map / Screen Inventory
@@ -131,6 +132,22 @@ graph TD
 - 交易签名与区块确认：`apps/web/features/registration/RegisterView.tsx:562`。
 - API 客户端与哈希工具：`apps/web/lib/api/registration.ts:58/90`、`apps/web/lib/crypto/blake3.ts:9`。
 - 测试覆盖：`apps/web/lib/api/registration.test.ts:16`、`apps/web/features/registration/RegisterView.test.tsx:113`。
+
+#### Post-Registration Redirect（新增规范）
+- 触发条件：`transactionState.stage === 'success'` 且 `fetchAccountProfile` 返回非空。
+- 行为：
+  - 若 `accountInfo.role === 'seller'` → `router.push('/dashboard/seller')`
+  - 若 `accountInfo.role === 'warehouse'` → `router.push('/dashboard/warehouse')`
+  - 若 60s 内未取到资料：保留当前页面，展示“前往仪表盘”与“刷新状态”按钮。
+- 可访问性：跳转前在页面上用 `aria-live=polite` 宣告“Registration succeeded, redirecting to dashboard…”。
+- 容错：保留现有 “Go to dashboard” 链接作为后备。
+
+#### Configuration（新增）
+- 必填环境：
+  - `NEXT_PUBLIC_APTOS_NETWORK=testnet`
+  - `NEXT_PUBLIC_APTOS_MODULE=0x<部署地址>`（用于拼接 `registry::register_*` 完整函数名）
+  - `NEXT_PUBLIC_BFF_URL=http://localhost:3001`
+  - 可选：`NEXT_PUBLIC_HASURA_URL`
 
 ```tsx
 // apps/web/features/registration/RegisterView.tsx:361

@@ -54,3 +54,49 @@ model MediaAsset {
   @@map("media_assets")
 }
 
+// -------- O1: Orders (planned) --------
+
+enum OrderStatus {
+  ORDER_DRAFT
+  ONCHAIN_CREATED
+  WAREHOUSE_IN
+  IN_STORAGE
+  WAREHOUSE_OUT
+}
+
+model Order {
+  id               BigInt      @id @default(autoincrement())
+  recordUid        String      @unique @map("record_uid")
+  creatorAddress   String      @map("creator_address")
+  warehouseAddress String      @map("warehouse_address")
+  status           OrderStatus
+  orderId          Int?        @map("order_id")
+  payloadJson      Json?       @map("payload_json")
+  txnVersion       BigInt?     @map("txn_version")
+  eventIndex       BigInt?     @map("event_index")
+  txnHash          String?     @map("txn_hash")
+  chainTimestamp   DateTime?   @map("chain_timestamp")
+  createdAt        DateTime    @default(now()) @map("created_at")
+  updatedAt        DateTime    @updatedAt @map("updated_at")
+
+  @@index([creatorAddress], map: "orders_creator_idx")
+  @@index([warehouseAddress], map: "orders_warehouse_idx")
+  @@map("orders")
+}
+
+model OrderEvent {
+  id             BigInt    @id @default(autoincrement())
+  recordUid      String    @map("record_uid")
+  orderId        Int?      @map("order_id")
+  type           String
+  txnVersion     BigInt    @map("txn_version")
+  eventIndex     BigInt    @map("event_index")
+  txnHash        String?   @map("txn_hash")
+  chainTimestamp DateTime? @map("chain_timestamp")
+  data           Json?     @map("data")
+  createdAt      DateTime  @default(now()) @map("created_at")
+
+  @@unique([txnVersion, eventIndex], map: "order_events_cursor_uniq")
+  @@index([recordUid], map: "order_events_record_uid_idx")
+  @@map("order_events")
+}

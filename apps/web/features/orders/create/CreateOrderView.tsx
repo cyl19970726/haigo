@@ -26,6 +26,7 @@ import { hexToBytes } from '../../../lib/crypto/hex';
 import { NetworkGuard } from '../../../lib/wallet/network-guard';
 import { useWalletContext } from '../../../lib/wallet/context';
 import { deriveInboundLogistics } from '../utils';
+import { useOrderDraft } from '../useOrderDraft';
 
 const STEPS = ['warehouse', 'pricing', 'review'] as const;
 type WizardStep = (typeof STEPS)[number];
@@ -130,6 +131,7 @@ export function CreateOrderView() {
   const [optimisticOrder, setOptimisticOrder] = useState<OptimisticOrderSnapshot | null>(null);
   const [orderDetail, setOrderDetail] = useState<OrderDetailDto | null>(null);
   const [orderList, setOrderList] = useState<OrderSummaryDto[]>([]);
+  const { recordUid: draftRecordUid, loading: draftLoading, error: draftError, createDraft } = useOrderDraft();
 
   const resolvedRecordUid = orderDetail?.recordUid ?? optimisticOrder?.recordUid;
 
@@ -144,6 +146,27 @@ export function CreateOrderView() {
     const platformBps = Math.round(formState.platformFeeRate * 100);
     return calculatePricing({ amountApt: amount, insuranceRateBps: insuranceBps, platformFeeBps: platformBps });
   }, [formState.amountApt, formState.insuranceRate, formState.platformFeeRate]);
+
+  // Auto-create a draft when entering review step
+  useEffect(() => {
+    if (step !== 'review') return;
+    if (!accountAddress || draftRecordUid) return;
+    const inboundLogistics = deriveInboundLogistics({
+      carrier: formState.carrier,
+      trackingNumber: formState.trackingNumber,
+      notes: formState.notes
+    });
+    const initialMedia = formState.mediaHash
+      ? { category: formState.mediaCategory, hashValue: formState.mediaHash }
+      : null;
+    void createDraft({
+      sellerAddress: accountAddress,
+      warehouseAddress: selectedWarehouse?.address ?? formState.warehouseId ?? '',
+      inboundLogistics: inboundLogistics ?? null,
+      pricing,
+      initialMedia
+    });
+  }, [step, accountAddress, selectedWarehouse?.address, formState.warehouseId, formState.carrier, formState.trackingNumber, formState.notes, formState.mediaHash, formState.mediaCategory, pricing, createDraft, draftRecordUid]);
 
   useEffect(() => {
     let cancelled = false;
@@ -650,6 +673,17 @@ export function CreateOrderView() {
             {formState.mediaHash && (
               <p className="order-review__hash">
                 Media hash ({formState.mediaCategory}): <code>{formState.mediaHash}</code>
+              </p>
+            )}
+            {(draftLoading || draftError || draftRecordUid) && (
+              <p className="order-review__hint">
+                {draftLoading && 'Saving draft…'}
+                {draftError && <span className="order-create__error">{draftError}</span>}
+                {draftRecordUid && (
+                  <>
+                    Draft record UID: <code>{draftRecordUid}</code>
+                  </>
+                )}
               </p>
             )}
           </div>

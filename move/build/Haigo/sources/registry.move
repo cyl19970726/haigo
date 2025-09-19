@@ -12,15 +12,18 @@ module haigo::registry {
     const E_INVALID_HASH_LENGTH: u64 = 2;
     const E_INVALID_HASH_FORMAT: u64 = 3;
     const E_INVALID_ALGORITHM: u64 = 4;
+    const E_ROLE_MISMATCH: u64 = 5;
+    const E_UNAUTHORIZED: u64 = 6;
 
     // Role flags
     const ROLE_SELLER: u8 = 1;
     const ROLE_WAREHOUSE: u8 = 2;
+    const ROLE_PLATFORM_OPERATOR: u8 = 4;
 
     // Hash algorithm constants
     const HASH_ALGORITHM_BLAKE3: u8 = 1;
 
-    /// Account record storing address, role flag, and profile hash metadata
+    // Account record storing address, role flag, and profile hash metadata
     struct AccountRecord has store, copy, drop {
         address: address,
         role: u8,
@@ -29,16 +32,17 @@ module haigo::registry {
         timestamp: u64,
     }
 
-    /// Registry resource to guard global registry state
+    // Registry resource to guard global registry state
     struct Registry has key {
         // Table mapping address to their registration record
         accounts: Table<address, AccountRecord>,
         // Event handles for registration events
         seller_registered_events: EventHandle<SellerRegistered>,
         warehouse_registered_events: EventHandle<WarehouseRegistered>,
+        platform_registered_events: EventHandle<PlatformOperatorRegistered>,
     }
 
-    /// Event emitted when a seller registers
+    // Event emitted when a seller registers
     struct SellerRegistered has store, drop {
         address: address,
         role: u8,
@@ -48,7 +52,7 @@ module haigo::registry {
         sequence: u64,
     }
 
-    /// Event emitted when a warehouse registers
+    // Event emitted when a warehouse registers
     struct WarehouseRegistered has store, drop {
         address: address,
         role: u8,
@@ -58,16 +62,37 @@ module haigo::registry {
         sequence: u64,
     }
 
-    /// Initialize the registry resource (called once during deployment)
+    // Event emitted when a platform operator registers
+    struct PlatformOperatorRegistered has store, drop {
+        address: address,
+        role: u8,
+        hash_algorithm: u8,
+        hash_value: String,
+        timestamp: u64,
+        sequence: u64,
+    }
+
+    // Initialize the registry resource (called once during deployment)
     fun init_module(account: &signer) {
         move_to(account, Registry {
             accounts: table::new(),
             seller_registered_events: account::new_event_handle<SellerRegistered>(account),
             warehouse_registered_events: account::new_event_handle<WarehouseRegistered>(account),
+            platform_registered_events: account::new_event_handle<PlatformOperatorRegistered>(account),
         });
     }
 
-    /// Validate hash format - must be 64 character lowercase hex string for BLAKE3
+    // Public entry wrapper for initialization（幂等）
+    // 仅允许 @haigo 账户调用；若已初始化则无操作。
+    public entry fun init_registry_entry(account: &signer) {
+        let addr = signer::address_of(account);
+        assert!(addr == @haigo, error::permission_denied(E_UNAUTHORIZED));
+        if (!exists<Registry>(@haigo)) {
+            init_module(account);
+        };
+    }
+
+    // Validate hash format - must be 64 character lowercase hex string for BLAKE3
     fun validate_hash(hash_algorithm: u8, hash_value: &String): bool {
         // Only support BLAKE3 for now
         if (hash_algorithm != HASH_ALGORITHM_BLAKE3) {
@@ -95,7 +120,7 @@ module haigo::registry {
         true
     }
 
-    /// Register a seller with profile hash
+    // Register a seller with profile hash
     public entry fun register_seller(
         account: &signer,
         hash_algorithm: u8,
@@ -138,7 +163,7 @@ module haigo::registry {
         event::emit_event(&mut registry.seller_registered_events, event);
     }
 
-    /// Register a warehouse with profile hash
+    // Register a warehouse with profile hash
     public entry fun register_warehouse(
         account: &signer,
         hash_algorithm: u8,
@@ -181,18 +206,80 @@ module haigo::registry {
         event::emit_event(&mut registry.warehouse_registered_events, event);
     }
 
-    /// Check if an address is registered
+    // Register a platform operator or delegated platform account
+    public entry fun register_platform_operator(
+        account: &signer,
+        hash_algorithm: u8,
+        hash_value: String
+    ) acquires Registry {
+        let account_addr = signer::address_of(account);
+
+        assert!(validate_hash(hash_algorithm, &hash_value), error::invalid_argument(E_INVALID_HASH_FORMAT));
+
+        let registry = borrow_global_mut<Registry>(@haigo);
+
+        assert!(!table::contains(&registry.accounts, account_addr), error::already_exists(E_ALREADY_REGISTERED));
+
+        let current_time = timestamp::now_seconds();
+
+        let record = AccountRecord {
+            address: account_addr,
+            role: ROLE_PLATFORM_OPERATOR,
+            hash_algorithm,
+            hash_value: hash_value,
+            timestamp: current_time,
+        };
+
+        table::add(&mut registry.accounts, account_addr, record);
+
+        let event = PlatformOperatorRegistered {
+            address: account_addr,
+            role: ROLE_PLATFORM_OPERATOR,
+            hash_algorithm,
+            hash_value: hash_value,
+            timestamp: current_time,
+            sequence: event::counter(&registry.platform_registered_events),
+        };
+
+        event::emit_event(&mut registry.platform_registered_events, event);
+    }
+
+    // Check if an address is registered
     #[view]
     public fun is_registered(addr: address): bool acquires Registry {
         let registry = borrow_global<Registry>(@haigo);
         table::contains(&registry.accounts, addr)
     }
 
-    /// Get account record for an address
+    // Get account record for an address
     #[view]
     public fun get_account_record(addr: address): AccountRecord acquires Registry {
         let registry = borrow_global<Registry>(@haigo);
         *table::borrow(&registry.accounts, addr)
+    }
+
+    // Assert a specific role for an address, aborting if not matched
+    public fun assert_role(addr: address, expected_role: u8) acquires Registry {
+        let registry = borrow_global<Registry>(@haigo);
+        assert!(table::contains(&registry.accounts, addr), error::permission_denied(E_ROLE_MISMATCH));
+        let record = table::borrow(&registry.accounts, addr);
+        assert!(record.role == expected_role, error::permission_denied(E_ROLE_MISMATCH));
+    }
+
+    public fun role_seller(): u8 {
+        ROLE_SELLER
+    }
+
+    public fun role_warehouse(): u8 {
+        ROLE_WAREHOUSE
+    }
+
+    public fun role_platform_operator(): u8 {
+        ROLE_PLATFORM_OPERATOR
+    }
+
+    public fun hash_algorithm_blake3(): u8 {
+        HASH_ALGORITHM_BLAKE3
     }
 
 

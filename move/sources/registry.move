@@ -13,6 +13,7 @@ module haigo::registry {
     const E_INVALID_HASH_FORMAT: u64 = 3;
     const E_INVALID_ALGORITHM: u64 = 4;
     const E_ROLE_MISMATCH: u64 = 5;
+    const E_UNAUTHORIZED: u64 = 6;
 
     // Role flags
     const ROLE_SELLER: u8 = 1;
@@ -79,6 +80,16 @@ module haigo::registry {
             warehouse_registered_events: account::new_event_handle<WarehouseRegistered>(account),
             platform_registered_events: account::new_event_handle<PlatformOperatorRegistered>(account),
         });
+    }
+
+    // Public entry wrapper for initialization（幂等）
+    // 仅允许 @haigo 账户调用；若已初始化则无操作。
+    public entry fun init_registry_entry(account: &signer) {
+        let addr = signer::address_of(account);
+        assert!(addr == @haigo, error::permission_denied(E_UNAUTHORIZED));
+        if (!exists<Registry>(@haigo)) {
+            init_module(account);
+        };
     }
 
     // Validate hash format - must be 64 character lowercase hex string for BLAKE3
