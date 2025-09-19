@@ -155,11 +155,11 @@ describe('OrderCheckInView', () => {
   it('requires logistics info before advancing', async () => {
     render(<OrderCheckInView recordUid="order-42" />);
 
-    const nextButton = await screen.findByRole('button', { name: '下一步：上传媒体' });
+    const nextButton = await screen.findByRole('button', { name: 'Next: Upload media' });
     fireEvent.click(nextButton);
 
     await waitFor(() => {
-      expect(screen.getByText('请填写承运商信息')).toBeInTheDocument();
+      expect(screen.getByText('Please provide the carrier information')).toBeInTheDocument();
     });
   });
 
@@ -169,16 +169,16 @@ describe('OrderCheckInView', () => {
 
     render(<OrderCheckInView recordUid="order-42" />);
 
-    fireEvent.change(screen.getByLabelText('承运商'), { target: { value: 'SF Express' } });
-    fireEvent.change(screen.getByLabelText('物流单号'), { target: { value: 'TRACK-001' } });
+    fireEvent.change(screen.getByLabelText('Carrier'), { target: { value: 'SF Express' } });
+    fireEvent.change(screen.getByLabelText('Tracking number'), { target: { value: 'TRACK-001' } });
 
-    fireEvent.click(screen.getByRole('button', { name: '下一步：上传媒体' }));
-    fireEvent.click(await screen.findByRole('button', { name: '下一步：确认提交' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Next: Upload media' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Next: Review & submit' }));
 
-    fireEvent.click(screen.getByRole('button', { name: '提交链上入库' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Submit inbound on-chain' }));
 
     await waitFor(() => {
-      expect(screen.getByText('链上入库成功，时间线即将更新。')).toBeInTheDocument();
+      expect(screen.getByText('Inbound submission succeeded on-chain. The timeline will refresh shortly.')).toBeInTheDocument();
     });
 
     expect(manager.uploadAll).toHaveBeenCalled();
@@ -205,12 +205,12 @@ describe('OrderCheckInView', () => {
 
     render(<OrderCheckInView recordUid="order-42" />);
 
-    fireEvent.change(screen.getByLabelText('承运商'), { target: { value: 'SF Express' } });
-    fireEvent.change(screen.getByLabelText('物流单号'), { target: { value: 'TRACK-002' } });
+    fireEvent.change(screen.getByLabelText('Carrier'), { target: { value: 'SF Express' } });
+    fireEvent.change(screen.getByLabelText('Tracking number'), { target: { value: 'TRACK-002' } });
 
-    fireEvent.click(screen.getByRole('button', { name: '下一步：上传媒体' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Next: Upload media' }));
 
-    const reverifyButton = await screen.findByRole('button', { name: '重新验证' });
+    const reverifyButton = await screen.findByRole('button', { name: 'Retry verification' });
     fireEvent.click(reverifyButton);
 
     await waitFor(() => {
