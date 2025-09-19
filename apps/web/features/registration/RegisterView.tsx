@@ -17,6 +17,7 @@ import { uploadIdentityDocument, fetchAccountProfile } from '../../lib/api/regis
 import { hashFileBlake3 } from '../../lib/crypto/blake3';
 import { NetworkGuard } from '../../lib/wallet/network-guard';
 import { useWalletContext } from '../../lib/wallet/context';
+import { useRouter } from 'next/navigation';
 
 const ROLE_OPTIONS = [
   { value: 'seller', label: 'Seller' },
@@ -130,6 +131,7 @@ const saveCache = (address: string, payload?: PendingProfileCache | null) => {
 const buildExplorerUrl = (hash: string, network: string) => `${EXPLORER_BASE_URL}/txn/${hash}?network=${network}`;
 
 export function RegisterView() {
+  const router = useRouter();
   const {
     status,
     accountAddress,
@@ -164,6 +166,8 @@ export function RegisterView() {
   const [accountError, setAccountError] = useState<string | null>(null);
   const [simulationState, setSimulationState] = useState<SimulationState>({ status: 'idle' });
   const [transactionState, setTransactionState] = useState<TransactionState>({ stage: 'idle' });
+  const [redirectAnnounce, setRedirectAnnounce] = useState<string | null>(null);
+  const [showRedirectCta, setShowRedirectCta] = useState(false);
 
   const hashingRun = useRef(0);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -656,6 +660,23 @@ export function RegisterView() {
   const isPending = ['pending', 'success'].includes(transactionState.stage);
   const isExecuted = transactionState.stage === 'success';
 
+  // Auto-redirect to role dashboard after on-chain success and profile available
+  useEffect(() => {
+    if (transactionState.stage !== 'success') return;
+
+    // Safety timer: if indexing is slow and profile not yet visible from BFF
+    const timer = setTimeout(() => setShowRedirectCta(true), 60_000);
+
+    if (accountInfo?.role) {
+      const path = accountInfo.role === 'seller' ? '/dashboard/seller' : '/dashboard/warehouse';
+      setRedirectAnnounce('Registration succeeded, redirecting to your dashboard…');
+      // Small delay to allow screen readers to announce the message
+      setTimeout(() => router.push(path), 400);
+    }
+
+    return () => clearTimeout(timer);
+  }, [transactionState.stage, accountInfo?.role, router]);
+
   return (
     <main className="register-shell" aria-live="polite">
       <header className="register-shell__header">
@@ -1056,12 +1077,38 @@ export function RegisterView() {
                         <code>{accountInfo.profileHash.value}</code>.
                       </p>
                       <div className="registration-success__actions">
-                        <a className="registration-success__cta" href="/app">
+                        <a
+                          className="registration-success__cta"
+                          href={accountInfo.role === 'seller' ? '/dashboard/seller' : '/dashboard/warehouse'}
+                        >
                           Go to dashboard
                         </a>
                         <a className="registration-success__cta registration-success__cta--secondary" href="/orders">
                           View orders
                         </a>
+                      </div>
+                    </div>
+                  )}
+                  {transactionState.stage === 'success' && !accountInfo && showRedirectCta && (
+                    <div className="registration-success">
+                      <p>
+                        Registration succeeded on-chain. Indexing may take a moment. You can proceed to your dashboard now
+                        or refresh status.
+                      </p>
+                      <div className="registration-success__actions">
+                        <a
+                          className="registration-success__cta"
+                          href={role === 'seller' ? '/dashboard/seller' : '/dashboard/warehouse'}
+                        >
+                          Go to dashboard
+                        </a>
+                        <button
+                          type="button"
+                          className="registration-success__cta registration-success__cta--secondary"
+                          onClick={() => void refreshAccountInfo()}
+                        >
+                          Refresh status
+                        </button>
                       </div>
                     </div>
                   )}
@@ -1071,6 +1118,10 @@ export function RegisterView() {
           )}
         </>
       </NetworkGuard>
+      {/* Aria-live region for redirect announcements */}
+      <div aria-live="polite" aria-atomic="true" style={{ position: 'absolute', left: -9999 }}>
+        {redirectAnnounce ?? ''}
+      </div>
     </main>
   );
 }

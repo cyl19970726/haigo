@@ -12,6 +12,7 @@ FAUCET_URL=${FAUCET_URL:-https://faucet.testnet.aptoslabs.com}
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 PKG_DIR="$ROOT_DIR/move"
 ENV_FILE="$ROOT_DIR/.env.local"
+WEB_ENV_FILE="$ROOT_DIR/apps/web/.env.local"
 
 echo "==> Deploying Move package to Aptos $NETWORK with profile '$PROFILE'"
 
@@ -76,25 +77,36 @@ aptos move run --profile "$PROFILE" --assume-yes --function-id "$ACCOUNT_ADDR::o
   --args address:$ACCOUNT_ADDR bool:false || true
 
 # Update .env.local with addresses and network
-echo "==> Updating $ENV_FILE"
+echo "==> Updating $ENV_FILE and $WEB_ENV_FILE"
 touch "$ENV_FILE"
 backup="$ENV_FILE.bak.$(date +%s)"
 cp "$ENV_FILE" "$backup"
+touch "$WEB_ENV_FILE"
+web_backup="$WEB_ENV_FILE.bak.$(date +%s)"
+cp "$WEB_ENV_FILE" "$web_backup" 2>/dev/null || true
 
-upsert_env() {
+upsert_env_file() {
+  local file="$1"; shift
   local key="$1"; shift
   local val="$1"; shift
-  if grep -qE "^${key}=" "$ENV_FILE"; then
-    sed -i '' -E "s#^${key}=.*#${key}=${val}#" "$ENV_FILE"
+  if grep -qE "^${key}=" "$file" 2>/dev/null; then
+    sed -i '' -E "s#^${key}=.*#${key}=${val}#" "$file"
   else
-    printf "%s=%s\n" "$key" "$val" >>"$ENV_FILE"
+    printf "%s=%s\n" "$key" "$val" >>"$file"
   fi
 }
 
-upsert_env APTOS_NETWORK "$NETWORK"
-upsert_env NEXT_PUBLIC_APTOS_MODULE "$ACCOUNT_ADDR"
-upsert_env NEXT_PUBLIC_APTOS_ORDERS_MODULE "$ACCOUNT_ADDR"
+# root env updates (BFF / scripts)
+upsert_env_file "$ENV_FILE" APTOS_NETWORK "$NETWORK"
+upsert_env_file "$ENV_FILE" NEXT_PUBLIC_APTOS_NETWORK "$NETWORK"
+upsert_env_file "$ENV_FILE" NEXT_PUBLIC_APTOS_MODULE "$ACCOUNT_ADDR"
+upsert_env_file "$ENV_FILE" NEXT_PUBLIC_APTOS_ORDERS_MODULE "$ACCOUNT_ADDR"
 
-echo "==> Done. Backup of previous env at: $backup"
+# web env updates (Next.js reads apps/web/.env.local)
+upsert_env_file "$WEB_ENV_FILE" NEXT_PUBLIC_APTOS_NETWORK "$NETWORK"
+upsert_env_file "$WEB_ENV_FILE" NEXT_PUBLIC_APTOS_MODULE "$ACCOUNT_ADDR"
+upsert_env_file "$WEB_ENV_FILE" NEXT_PUBLIC_APTOS_ORDERS_MODULE "$ACCOUNT_ADDR"
+
+echo "==> Done. Backups: $backup and $web_backup"
 echo "    Deployed module address: $ACCOUNT_ADDR"
 echo "    Remember to restart your apps to pick up env changes."

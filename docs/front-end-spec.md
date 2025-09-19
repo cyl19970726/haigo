@@ -836,3 +836,203 @@ flowchart TD
 
 ## Checklist Results
 暂无专用 UI/UX checklist；待 Figma 初稿完成后运行团队内部评审。
+## Homepage & Auth (New)
+
+### Landing Page Design
+- Hero layout with two primary CTAs:
+  - Connect Wallet (Login)
+  - Register Identity
+- Secondary content: key value props, screenshots/cards (3-up grid)
+- Footer with links to Docs/Privacy/Contact
+
+### Components (shadcn)
+- Button (primary/secondary), Card, Input, Separator, Dialog (for wallet tips), Toast (feedback)
+- Suggested install (for reference):
+  - `npx shadcn@latest add button card input separator dialog toast`
+
+### Interaction Flow
+- Login (Connect Wallet):
+  - On click: invoke wallet selector → connect → show address badge
+  - If registered → redirect to `/dashboard/{role}`
+  - If not registered → deep link to `/register`
+- Register CTA: deep link to `/register`
+
+### Accessibility
+- Buttons with clear labels and aria-disabled when loading
+- `aria-live=polite` feedback on connect success/failure
+
+### Implementation Anchors
+- `apps/web/app/page.tsx` (Landing)
+- `apps/web/lib/wallet/context.tsx` (connect state)
+- `apps/web/features/registration/RegisterView.tsx` (existing)
+
+### Homepage V2 (A2) – Detailed Spec
+- Goals: High‑conversion, product‑centric; immediate comprehension; clear CTAs.
+- Sections:
+  1) Hero: Headline, subcopy, primary (Connect Wallet) and secondary (Register) CTAs; trust indicators.
+  2) Value Grid: 3–6 Cards with icon, title, description.
+  3) How It Works: 4 steps with compact visuals.
+  4) Metrics/Testimonials (optional): brief stats or quotes.
+  5) Footer.
+
+ASCII Wireframe (single CTA in Hero)
+```
+┌──────────────────────────────────────────────────────────────┐
+│  HAI GO                              [Connect] [Register]     │
+│  Verifiable storage & logistics                              │
+│  Cross-border, indexer-backed proofs.                         │
+│                                                              │
+│  [ hero-visual / gradient ]                                   │
+├──────────────────────────────────────────────────────────────┤
+│  ▣ Verifiable Storage   ▣ Transparent Logistics   ▣ Insurance │
+│  Short copy…            Short copy…               Short copy… │
+│  ▣ Indexer Proofs       ▣ Low Friction            ▣ Analytics │
+│  Short copy…            Short copy…               Short copy… │
+├──────────────────────────────────────────────────────────────┤
+│  ① Connect → ② Register → ③ Create Order → ④ Track & Verify  │
+├──────────────────────────────────────────────────────────────┤
+│  1,245 Orders • 32 Warehouses • 99.9% Uptime                 │
+├──────────────────────────────────────────────────────────────┤
+│  © HaiGo • Docs • Privacy • Contact                          │
+└──────────────────────────────────────────────────────────────┘
+```
+
+Components (shadcn)
+- Button, Card, Badge, Separator, Dialog, Toast, Navbar/Sheet (mobile menu).
+
+Responsive & Theming
+- Breakpoints: sm/md/lg/xl; mobile‑first; grid stacks to single column on mobile.
+- Theming via CSS vars; respect prefers‑color‑scheme.
+
+Interaction
+- Primary CTA → connect flow → route by status; Secondary CTA → /register.
+- Announce via aria‑live; show toasts for errors.
+
+Acceptance
+- Visual consistency across breakpoints; CTAs functional; a11y and perf checks pass.
+## Dashboard (Seller / Warehouse)
+
+### Goals
+- 为两个角色提供“开箱即用”的主页：集中展示最近任务/状态，并提供明显的下一步操作。
+
+### Routes & Containers
+- `/dashboard/seller` → SellerDashboard 容器
+- `/dashboard/warehouse` → WarehouseDashboard 容器
+
+### Seller Cards（MVP）
+- 最近订单（调用 GET /api/orders?seller=…）：显示 orderId、状态、时间戳，点击进入详情/下单向导。
+- 快速下单 CTA：跳转到订单创建向导（CreateOrderView）。
+- 配置提示：NEXT_PUBLIC_APTOS_NETWORK / BFF URL 缺失时提示。
+
+### Warehouse Cards（MVP）
+- 质押/存储费：调用 GET /api/staking/intent 显示 stakedAmount 与 feePerUnit；提供“设置费率”按钮（POST /api/staking/storage-fee）。
+- 订单收件箱：调用 GET /api/orders?warehouse=… 显示待处理/在库/已出库分组。
+- 快捷操作 CTA：入库/出库入口（后续 O2 页面）。
+
+### Loading/Error/Empty States
+- 初始 Skeleton；错误以 role=alert 呈现并供重试；空列表展示友好占位与说明。
+
+### Accessibility
+- 所有卡片标题使用语义化元素；操作按钮具备明确 aria-label；错误提示带 role=alert。
+
+### Implementation Anchors（planned）
+- `apps/web/app/dashboard/seller/page.tsx`
+- `apps/web/app/dashboard/warehouse/page.tsx`
+- `apps/web/features/dashboard/*`
+
+### Warehouse Dashboard ASCII Wireframe（MVP）
+```
+┌───────────────────────────────────────────────────────────────┐
+│  Welcome, 0xWAREHOUSE…               [Help] [Docs]           │
+├───────────────────────────────────────────────────────────────┤
+│  Staking & Storage Fee                                        │
+│  ┌────────────────────────────┐  ┌──────────────────────────┐ │
+│  │  Staked Amount             │  │  Storage Fee (per unit)  │ │
+│  │  [  1,200 APT        ]     │  │  [   25 bps          ]   │ │
+│  │  [Stake] [Unstake]         │  │  [Set Fee]               │ │
+│  └────────────────────────────┘  └──────────────────────────┘ │
+├───────────────────────────────────────────────────────────────┤
+│  Orders Inbox (Recent)                                        │
+│  ┌─────────────────────────────────────────────────────────┐  │
+│  │  #123  CREATED     2025-09-19 10:31   [Check In]       │  │
+│  │  #122  IN_STORAGE  2025-09-18 18:04   [Check Out]      │  │
+│  │  #121  WAREHOUSE_IN 2025-09-18 16:22  [Set Storage]    │  │
+│  └─────────────────────────────────────────────────────────┘  │
+├───────────────────────────────────────────────────────────────┤
+│  Quick Actions                                                │
+│  [Inbound Scan]   [Outbound Dispatch]   [Manage Fee]          │
+└───────────────────────────────────────────────────────────────┘
+Legend:
+- Staking & Storage Fee 卡片：读取 /api/staking/intent，按钮触发钱包签名 stake/unstake/set_storage_fee。
+- Orders Inbox：读取 /api/orders?warehouse=…，按状态展示近几条订单；CTA 跳转 O2 页面。
+```
+
+### Seller Dashboard ASCII Wireframe（MVP）
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  Welcome, 0xSELLER…                     [Help] [Docs]          │
+├─────────────────────────────────────────────────────────────────┤
+│  Recent Orders                                                  │
+│  ┌───────────────────────────────────────────────────────────┐  │
+│  │  #231  CREATED     2025-09-19 10:31  [View] [New Order]  │  │
+│  │  #230  IN_STORAGE  2025-09-18 18:04  [View]              │  │
+│  │  #229  WAREHOUSE_IN 2025-09-18 16:22 [View]              │  │
+│  └───────────────────────────────────────────────────────────┘  │
+├─────────────────────────────────────────────────────────────────┤
+│  Find Warehouses (Listing)                                      │
+│  ┌───────────────────────────────────────────────────────────┐  │
+│  │  [Search q=...] [Area] [Fee<=] [Score>=] [Sort▼]         │  │
+│  │  [  Explore Warehouses  ]                                │  │
+│  └───────────────────────────────────────────────────────────┘  │
+├─────────────────────────────────────────────────────────────────┤
+│  Quick Actions                                                  │
+│  [New Order]   [My Orders]   [Profile]                         │
+└─────────────────────────────────────────────────────────────────┘
+Legend:
+- Recent Orders：调用 GET /api/orders?seller=…，显示近几条订单。
+- Find Warehouses：跳转 L1 Listing 页面，带初始筛选；完成选择后进入下单向导。
+```
+
+## Create Order (Merchant) — UI/UX
+
+### Flow
+1) Seller Dashboard → 点击「Find Warehouses」进入 Listing（L1）。
+2) 在 Listing 中选择某个家庭仓 → 进入“Create Order”页面，默认带上所选仓库地址。
+3) 填写物流信息（最低需求：快递单号；可选：承运商/备注）；复核金额（PoC 可固定金额/费率）。
+4) 点击“Sign & Submit”调用钱包签名，将订单信息上链（create_order）。
+5) 成功后在订单列表与时间线可见，回放事件写入链下。
+
+### Shadcn Card Layout（ASCII）
+```
+┌───────────────────────────────────────────────────────────────┐
+│  Create Order                                                 │
+├───────────────────────────────────────────────────────────────┤
+│  Warehouse                                                   │
+│  ┌─────────────────────────────────────────────────────────┐ │
+│  │  Selected: 0xWAREHOUSE…  [Change]                      │ │
+│  └─────────────────────────────────────────────────────────┘ │
+│                                                               │
+│  Logistics (Required)                                         │
+│  ┌─────────────────────────────────────────────────────────┐ │
+│  │  Carrier: [ SF Express        ]                          │ │
+│  │  Tracking No.: [ SF123456789CN ]                         │ │
+│  │  Notes: [ optional text…     ]                           │ │
+│  └─────────────────────────────────────────────────────────┘ │
+│                                                               │
+│  Review & Estimate                                            │
+│  ┌─────────────────────────────────────────────────────────┐ │
+│  │  Amount: 1.0000 APT   Insurance: 0.2500 APT  Fee: 0.075 │ │
+│  │  [ Estimate Gas ]     [ Sign & Submit ]                  │ │
+│  └─────────────────────────────────────────────────────────┘ │
+└───────────────────────────────────────────────────────────────┘
+Legend:
+- Warehouse 卡片默认显示从 Listing 选择的地址，可点击 Change 返回列表。
+- Logistics 必填至少“Tracking No.”；Carrier/Notes 可选。
+- Review & Estimate 显示金额与费率；PoC 可内置默认值或隐藏复杂项。
+```
+
+### Anchors
+- `apps/web/features/orders/create/CreateOrderView.tsx`（已有实现）
+- `apps/web/features/orders/useOrderDraft.ts`（草稿保存）
+- `apps/web/lib/api/orders.ts`（订单查询、详情）
+- 从 Listing 打开 Create Order（planned）：`/orders/new?warehouse=0x…`

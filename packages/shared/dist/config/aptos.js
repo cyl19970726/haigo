@@ -36,7 +36,8 @@ export const APTOS_CONFIG_MAINNET = {
 };
 // Export the configuration based on environment
 export const getAptosConfig = () => {
-    const env = process.env.APTOS_NETWORK || process.env.NODE_ENV || 'development';
+    // Prefer frontend-exposed network when present
+    const env = (process.env.NEXT_PUBLIC_APTOS_NETWORK || process.env.APTOS_NETWORK || process.env.NODE_ENV || 'development').toLowerCase();
     switch (env) {
         case 'mainnet':
         case 'production':

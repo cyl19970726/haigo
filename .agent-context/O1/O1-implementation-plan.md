@@ -13,6 +13,7 @@
 
 ## 二、跨层设计（契约与流程）
 - FE 直连钱包签名 create_order（保留“BFF 生成签名载荷”扩展位）；提交后轮询 BFF 获取订单详情与列表。
+- 与 L1 联动：支持从 Listing 卡片跳转到 `/(merchant)/orders/new?warehouse=0x...`，在订单向导初始化时读取 `?warehouse=` 预选仓库；或在向导第一步直接使用同一目录数据源（`/api/warehouses`）。
 - BFF 按 10.4 时序：
   - POST /api/orders/drafts → 保存草稿（status=ORDER_DRAFT），返回 recordUid 与推荐签名参数（function、typeArgs、args）。
   - 监听 Indexer: OrderCreated 事件 → 通过 Fullnode by_version 兜底 txn_hash + timestamp → 更新 orders（status=ONCHAIN_CREATED）。
@@ -76,6 +77,10 @@ model OrderEvent {
 }
 ```
 
+### 1.1 共享类型（Share Types & DTO Index）
+- 订单：packages/shared/src/dto/orders.ts → `OrderSummaryDto`, `OrderDetailDto`, `LogisticsInfo`, `PricingBreakdown`
+- 订单配置：packages/shared/src/config/orders.ts（状态/媒体/错误码）；packages/shared/src/config/aptos.ts（模块地址）
+
 ### 2) BFF Orders 模块骨架（apps/bff/src/modules/orders/*）
 
 文件：apps/bff/src/modules/orders/orders.module.ts
@@ -96,6 +101,15 @@ import { OrdersEventListener } from './orders-event-listener.service.js';
 })
 export class OrdersModule {}
 ```
+
+### 2.1) 前端路由与容器（planned）
+- `apps/web/app/dashboard/seller/page.tsx`：SellerDashboard 容器（含「Find Warehouses」卡片入口）。
+- `apps/web/app/(seller)/warehouses/page.tsx`：Listing 页面（L1，详见 .agent-context/L1 计划）。
+- `apps/web/app/(merchant)/orders/new/page.tsx`：Create Order 入口，支持 `?warehouse=0x...`。
+- `apps/web/features/orders/create/CreateOrderView.tsx`：
+  - 初始加载仓库目录（`fetchWarehouses()`）；
+  - 读取 `router.query.warehouse`（或等价方案）以默认选中仓库；
+  - 进入 Review 步骤自动创建草稿，随后签名提交。
 
 文件：apps/bff/src/modules/orders/dto/create-order-draft.dto.ts
 ```ts
@@ -554,6 +568,9 @@ export function useOrderDraft() {
    - 将 OrdersModule 挂载到 AppModule；配置项沿用 `indexerUrl`、`nodeApiUrl`、`aptosApiKey`。
 3. FE 集成
    - 新增 useOrderDraft（可选）；CreateOrderView 在“Review”页调用 BFF 创建草稿，展示返回 recordUid。
+   - 在 SellerDashboard 增加「Find Warehouses」卡片入口（Link → `/warehouses`）；
+   - 在 Listing 卡片 CTA 链接至 `/orders/new?warehouse=0x...`；
+   - 在 CreateOrderView 中读取 `warehouse` query 作为默认选择的仓库地址，可点击 Change 返回 Listing；
 4. 观测与补偿
    - 指标：poll 延迟、Fullnode 兜底次数；错误率；导出 `order_listener_last_version`、`order_listener_error_total`（参考 docs/architecture/6-部署与环境.md:6.3.3）。
    - 定时补偿任务：重试缺失 txn_hash 的订单（可沿用 R1 思路，后续拆 Story）。
@@ -603,3 +620,8 @@ Checklist（实施顺序）
 [ ] 联调验证与指标接入（进行中）
 [ ] 全量测试套件绿灯（受既有 Jest 配置影响，单独用例已补齐）
 ```
+- 前端对接（Dashboard → Listing → Create Order）
+  - Seller Dashboard：提供「Find Warehouses」入口，跳转到 L1 列表页；
+  - L1 Listing：卡片 CTA 跳转到 Create Order，携带 `?warehouse=0x...`；
+  - Create Order：在 `CreateOrderView.tsx` 读取 query `warehouse` 作为默认选中仓；承运商/快递单号为最小必填；
+  - UI 采用 shadcn 卡片布局（见 docs/front-end-spec.md 的 Create Order ASCII）。

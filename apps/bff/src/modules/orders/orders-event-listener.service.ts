@@ -167,6 +167,7 @@ export class OrdersEventListener implements OnModuleInit, OnModuleDestroy {
     const s = err instanceof Error ? `${err.message} ${err.stack ?? ''}` : String(err);
     if (/\b(429|rate limit)\b/i.test(s)) return 60_000;
     if (/\b(408|timeout|timed out)\b/i.test(s)) return 30_000;
+    if (/(fetch failed|ECONNRESET|ENOTFOUND|EAI_AGAIN|socket hang up|network)/i.test(s)) return 30_000;
     return 0;
   }
 

@@ -34,6 +34,12 @@ async function bootstrap() {
     Logger.log(`BFF listening on http://localhost:${port}`, 'Bootstrap');
 }
 bootstrap().catch((error) => {
-    Logger.error('Failed to bootstrap BFF', error);
+    try {
+        Logger.error('Failed to bootstrap BFF', error);
+    }
+    catch { }
+    // Ensure visibility even if Nest Logger is not ready
+    // eslint-disable-next-line no-console
+    console.error('[BootstrapError]', error?.stack || error);
     process.exit(1);
 });

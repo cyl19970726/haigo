@@ -152,6 +152,8 @@ let OrdersEventListener = OrdersEventListener_1 = class OrdersEventListener {
             return 60_000;
         if (/\b(408|timeout|timed out)\b/i.test(s))
             return 30_000;
+        if (/(fetch failed|ECONNRESET|ENOTFOUND|EAI_AGAIN|socket hang up|network)/i.test(s))
+            return 30_000;
         return 0;
     }
     async fetchLatestLedgerVersion() {

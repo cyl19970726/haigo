@@ -7,6 +7,7 @@ import { HealthModule } from './health/health.module.js';
 import { MediaModule } from './media/media.module.js';
 import { OrdersModule } from './orders/orders.module.js';
 import { MetricsModule } from './metrics/metrics.module.js';
+import { StakingModule } from './staking/staking.module.js';
 
 @Module({
   imports: [
@@ -22,7 +23,8 @@ import { MetricsModule } from './metrics/metrics.module.js';
     AccountsModule,
     MediaModule,
     MetricsModule,
-    OrdersModule
+    OrdersModule,
+    StakingModule
   ]
 })
 export class AppModule {}

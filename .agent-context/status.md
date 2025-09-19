@@ -10,6 +10,8 @@
 | 仓库订单收件箱 | W2 | 仓库看到被下单订单 | 规划中 | .agent-context/W2/W2-implementation-plan.md | .agent-context/W2/changes.md |
 | 仓储出库与媒体上传 | O2 | 出库签署与媒体对账 | 规划中 | .agent-context/O2/O2-implementation-plan.md | .agent-context/O2/changes.md |
 | 商家评价 | M1 | 对仓库订单评价 | 规划中 | .agent-context/M1/M1-implementation-plan.md | .agent-context/M1/changes.md |
+| 登录与首页 | A1 | 连接钱包登录 + Landing | 进行中 | .agent-context/AUTH/A1-login-implementation-plan.md | .agent-context/AUTH/changes.md |
+| 首页升级 | A2 | 产品型首页（美观/高转化） | 计划中 | .agent-context/AUTH/A2-homepage-ux-plan.md | .agent-context/AUTH/changes.md |
 
 说明：
 - “初版完成”表示最小可用链路已联通（API + 监听 + 最小前端集成）。

@@ -274,6 +274,8 @@ export class AccountsEventListener implements OnModuleInit, OnModuleDestroy {
     const s = error instanceof Error ? `${error.message} ${error.stack ?? ''}` : String(error);
     if (/\b(429|rate limit)\b/i.test(s)) return 60_000; // 1 min min-backoff
     if (/\b(408|timeout|timed out)\b/i.test(s)) return 30_000; // 30s
+    // Network-layer transient failures from undici/node: fetch failed, ECONNRESET, ENOTFOUND, EAI_AGAIN, socket hang up
+    if (/(fetch failed|ECONNRESET|ENOTFOUND|EAI_AGAIN|socket hang up|network)/i.test(s)) return 30_000;
     return 0;
   }
 
@@ -355,19 +357,24 @@ export class AccountsEventListener implements OnModuleInit, OnModuleDestroy {
   }
 
   private extractHashValue(data: Record<string, any>): string | null {
-    const hashContainer = data.profile_hash ?? data.profileHash ?? data.hash;
-
-    if (!hashContainer) {
-      return typeof data.profile_hash_value === 'string' ? data.profile_hash_value : null;
+    // Support common shapes and naming styles from Indexer payloads
+    // 1) Direct string fields
+    const directStr =
+      data.profile_hash ??
+      data.profileHash ??
+      data.hash ??
+      data.hash_value ??
+      data.hashValue ??
+      data.profile_hash_value;
+    if (typeof directStr === 'string') {
+      return this.ensureLowercaseHash(directStr);
     }
 
-    if (typeof hashContainer === 'string') {
-      return this.ensureLowercaseHash(hashContainer);
-    }
-
-    if (typeof hashContainer === 'object') {
-      const value = hashContainer.value ?? hashContainer.hash ?? hashContainer.hash_value ?? null;
-      return value ? this.ensureLowercaseHash(value) : null;
+    // 2) Nested object container with various keys
+    const container = data.profile_hash ?? data.profileHash ?? data.hash;
+    if (container && typeof container === 'object') {
+      const value = container.value ?? container.hash ?? container.hash_value ?? null;
+      return typeof value === 'string' ? this.ensureLowercaseHash(value) : null;
     }
 
     return null;

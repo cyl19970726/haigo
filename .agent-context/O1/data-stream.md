@@ -14,7 +14,7 @@ sequenceDiagram
   participant Indexer as Aptos Indexer (GraphQL)
   participant Fullnode as Aptos Fullnode (REST)
 
-  Note over FE: 进入 Review 步骤 -> 自动创建草稿
+  Note over FE: 可从 Listing 携带 ?warehouse=0x... 预选仓库；进入 Review 步骤 -> 自动创建草稿
   FE->>BFF: POST /api/orders/drafts {seller, warehouse, pricing, media?}
   BFF->>DB: INSERT orders(status=ORDER_DRAFT, payload_json)
   BFF-->>FE: {recordUid, signPayload(function,typeArgs,args)}
@@ -125,6 +125,7 @@ flowchart LR
 
 ## 6. 端到端验收路径（摘要）
 - FE：CreateOrderView → 选择仓库/费用 → Review 步骤显示 Draft record UID → 点击签名提交
+- 来自 L1 的联动：从 Listing 卡片跳转至 `/(merchant)/orders/new?warehouse=0x...` 时，页面初始化后应显示预选仓库
 - BFF：
   - /api/orders/drafts 返回 recordUid + signPayload
   - 监听 OrderCreated → 更新 orders.status=ONCHAIN_CREATED & txn_hash
@@ -134,4 +135,3 @@ flowchart LR
 ```text
 提示：本文件仅针对 O1（OrderCreated）。后续 O2 (CheckedIn/SetInStorage/CheckedOut) 补充时间线与媒体对账数据流图。
 ```
-

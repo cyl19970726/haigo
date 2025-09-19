@@ -43,3 +43,8 @@
 - [x] 添加基础测试：
   - `apps/bff/test/orders.repository.spec.ts`
   - `apps/bff/test/orders.controller.spec.ts`
+
+## 前端 UX 对接（Dashboard → Listing → Create）
+- [ ] SellerDashboard 增加「Find Warehouses」入口（Link → `/(seller)/warehouses`）
+- [ ] Listing 卡片 CTA 跳转 `/(merchant)/orders/new?warehouse=0x...`
+- [ ] CreateOrderView 在初始化读取 `?warehouse=` 预选仓库（目前未实现，需新增）
