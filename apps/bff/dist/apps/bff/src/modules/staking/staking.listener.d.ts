@@ -1,0 +1,35 @@
+import { OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { MetricsService } from '../metrics/metrics.service.js';
+import { StakingRepository } from './staking.repository.js';
+export declare class StakingListener implements OnModuleInit, OnModuleDestroy {
+    private readonly config;
+    private readonly repo;
+    private readonly metrics?;
+    private readonly logger;
+    private pollHandle;
+    private isPolling;
+    private lastTxnVersion;
+    private lastEventIndex;
+    private cooldownUntilMs;
+    private backoffMs;
+    private readonly indexerUrl;
+    private readonly nodeApiUrl;
+    private readonly aptosApiKey;
+    private readonly pollingInterval;
+    private readonly pageSize;
+    private readonly maxPagesPerTick;
+    private readonly startFromLatest;
+    private readonly backfillOffsetVersions;
+    private stakeChangedType;
+    private feeUpdatedType;
+    constructor(config: ConfigService, repo: StakingRepository, metrics?: MetricsService | undefined);
+    onModuleInit(): Promise<void>;
+    onModuleDestroy(): any;
+    private start;
+    private pollOnce;
+    private fetchEvents;
+    private processEvent;
+    private applyBackoff;
+    private resolveTxnMetaByVersion;
+}

@@ -2,6 +2,7 @@ declare const _default: () => {
     env: string;
     port: number;
     hasuraUrl: string;
+    hasuraAdminSecret: string;
     indexerUrl: string;
     nodeApiUrl: string;
     aptosApiKey: string;
@@ -18,6 +19,9 @@ declare const _default: () => {
     media: {
         storageDir: string | undefined;
         publicPrefix: string;
+    };
+    directory: {
+        cacheTtlMs: number;
     };
 };
 export default _default;

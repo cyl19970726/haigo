@@ -13,6 +13,8 @@ import { HealthModule } from './health/health.module.js';
 import { MediaModule } from './media/media.module.js';
 import { OrdersModule } from './orders/orders.module.js';
 import { MetricsModule } from './metrics/metrics.module.js';
+import { StakingModule } from './staking/staking.module.js';
+import { DirectoryModule } from './directory/directory.module.js';
 let AppModule = class AppModule {
 };
 AppModule = __decorate([
@@ -30,7 +32,9 @@ AppModule = __decorate([
             AccountsModule,
             MediaModule,
             MetricsModule,
-            OrdersModule
+            OrdersModule,
+            StakingModule,
+            DirectoryModule
         ]
     })
 ], AppModule);

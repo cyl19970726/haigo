@@ -82,7 +82,7 @@ module haigo::staking {
                 stake_changed_events: account::new_event_handle<StakeChanged>(admin),
                 fee_updated_events: account::new_event_handle<StorageFeeUpdated>(admin),
             });
-        }
+        };
         if (!exists<CreditBook>(@haigo)) {
             move_to(admin, CreditBook { credits: table::new() });
         }

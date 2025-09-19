@@ -11,6 +11,12 @@ const mockFetchWarehouses = vi.fn();
 const mockFetchOrderDetail = vi.fn();
 const mockFetchOrderSummaries = vi.fn();
 
+let searchParams = new URLSearchParams();
+
+vi.mock('next/navigation', () => ({
+  useSearchParams: () => searchParams
+}));
+
 vi.mock('../../../lib/api/orders', () => ({
   fetchWarehouses: (...args: Parameters<typeof mockFetchWarehouses>) => mockFetchWarehouses(...args),
   fetchOrderDetail: (...args: Parameters<typeof mockFetchOrderDetail>) => mockFetchOrderDetail(...args),
@@ -79,6 +85,7 @@ const resetMocks = () => {
   mockFetchWarehouses.mockReset();
   mockFetchOrderDetail.mockReset();
   mockFetchOrderSummaries.mockReset();
+  searchParams = new URLSearchParams();
   contextRef.current = {
     ...walletContext,
     aptos: {

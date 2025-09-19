@@ -2,6 +2,7 @@ export default () => ({
     env: process.env.ENV || 'dev',
     port: Number(process.env.PORT) || 3001,
     hasuraUrl: process.env.HASURA_URL || 'http://localhost:8080',
+    hasuraAdminSecret: process.env.HASURA_ADMIN_SECRET || '',
     // Prefer Aptos Labs gateway which supports both REST and GraphQL with API key
     indexerUrl: process.env.APTOS_INDEXER_URL || 'https://api.testnet.aptoslabs.com/v1/graphql',
     // Base URL for Aptos Fullnode REST. Used as a fallback when the Indexer
@@ -28,5 +29,8 @@ export default () => ({
     media: {
         storageDir: process.env.MEDIA_STORAGE_DIR,
         publicPrefix: process.env.MEDIA_PUBLIC_PREFIX || '/media'
+    },
+    directory: {
+        cacheTtlMs: Number(process.env.DIRECTORY_CACHE_TTL_MS) || 30_000
     }
 });

@@ -8,6 +8,7 @@ import { MediaModule } from './media/media.module.js';
 import { OrdersModule } from './orders/orders.module.js';
 import { MetricsModule } from './metrics/metrics.module.js';
 import { StakingModule } from './staking/staking.module.js';
+import { DirectoryModule } from './directory/directory.module.js';
 
 @Module({
   imports: [
@@ -24,7 +25,8 @@ import { StakingModule } from './staking/staking.module.js';
     MediaModule,
     MetricsModule,
     OrdersModule,
-    StakingModule
+    StakingModule,
+    DirectoryModule
   ]
 })
 export class AppModule {}

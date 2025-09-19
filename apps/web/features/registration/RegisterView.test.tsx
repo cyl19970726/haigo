@@ -10,6 +10,22 @@ const mockUpload = vi.fn();
 const mockFetchAccount = vi.fn();
 const mockHashFile = vi.fn();
 
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({
+    push: vi.fn(),
+    replace: vi.fn(),
+    prefetch: vi.fn(),
+    back: vi.fn(),
+    forward: vi.fn(),
+    refresh: vi.fn(),
+    pathname: '/register',
+    route: '/register',
+    query: {}
+  }),
+  useSearchParams: () => new URLSearchParams(),
+  usePathname: () => '/register'
+}));
+
 vi.mock('../../lib/api/registration', () => ({
   uploadIdentityDocument: (...args: Parameters<typeof mockUpload>) => mockUpload(...args),
   fetchAccountProfile: (...args: Parameters<typeof mockFetchAccount>) => mockFetchAccount(...args)
