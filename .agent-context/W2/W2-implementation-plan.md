@@ -24,6 +24,7 @@
   - apps/web/app/dashboard/warehouse/page.tsx（Inbox 卡片）
   - apps/web/app/(warehouse)/orders/page.tsx（收件箱完整页，optional）
   - apps/web/features/orders/inbox/WarehouseOrders.tsx（列表容器）
+  - UI 组件（ShadCN MCP）：列表/卡片/标签/分页/空态与加载态使用 ShadCN，通过 MCP 拉取 `card`、`table`、`badge`、`tabs`、`skeleton`、`alert`、`pagination`、`button` 等组件。
 
 ## 3. 共享类型（Share Types & DTO Index）
 - packages/shared/src/dto/orders.ts → `OrderSummaryDto`（recordUid/orderId/status/createdAt/transactionHash）

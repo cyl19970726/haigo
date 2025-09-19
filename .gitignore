@@ -3,6 +3,8 @@
 .bmad-*/
 node_modules
 .next/
+dist/
+apps/*/dist/
 .pnpm-store/
 .aptos/
 .env.local

@@ -14,6 +14,7 @@
 ## 二、跨层设计（契约与流程）
 - FE 直连钱包签名 create_order（保留“BFF 生成签名载荷”扩展位）；提交后轮询 BFF 获取订单详情与列表。
 - 与 L1 联动：支持从 Listing 卡片跳转到 `/(merchant)/orders/new?warehouse=0x...`，在订单向导初始化时读取 `?warehouse=` 预选仓库；或在向导第一步直接使用同一目录数据源（`/api/warehouses`）。
+- 前端 UI（ShadCN MCP）：向导与详情使用 ShadCN 组件，通过 MCP 拉取并安装：Form、Input、Select、Table、Button、Alert、Toast、Tooltip、Dialog、Progress、Badge 等。
 - BFF 按 10.4 时序：
   - POST /api/orders/drafts → 保存草稿（status=ORDER_DRAFT），返回 recordUid 与推荐签名参数（function、typeArgs、args）。
   - 监听 Indexer: OrderCreated 事件 → 通过 Fullnode by_version 兜底 txn_hash + timestamp → 更新 orders（status=ONCHAIN_CREATED）。
@@ -110,6 +111,7 @@ export class OrdersModule {}
   - 初始加载仓库目录（`fetchWarehouses()`）；
   - 读取 `router.query.warehouse`（或等价方案）以默认选中仓库；
   - 进入 Review 步骤自动创建草稿，随后签名提交。
+  - ShadCN（MCP）：表单/输入/反馈使用 ShadCN，MCP 获取 `form`、`input`、`select`、`table`、`alert`、`toast`、`dialog`、`progress` 等组件。
 
 文件：apps/bff/src/modules/orders/dto/create-order-draft.dto.ts
 ```ts

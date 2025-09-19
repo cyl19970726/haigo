@@ -3,6 +3,11 @@
 export interface ApiMeta {
   requestId?: string;
   timestamp?: string;
+  page?: number;
+  pageSize?: number;
+  total?: number;
+  cacheHit?: boolean;
+  generatedAt?: string;
 }
 
 export interface ApiEnvelope<T> {

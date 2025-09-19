@@ -354,6 +354,14 @@ export function StakingDashboard({ address }: { address: string }) {
 }
 ```
 
+### 16.1 前端组件（ShadCN MCP）
+- 使用 ShadCN 组件库，通过 MCP 获取并安装组件，统一样式与交互。
+- 建议组件：`@shadcn/button`、`@shadcn/card`、`@shadcn/input`、`@shadcn/label`、`@shadcn/select`、`@shadcn/badge`、`@shadcn/alert`、`@shadcn/toast`、`@shadcn/skeleton`。
+- MCP 工作流：
+  - 若缺少 `components.json`，先初始化 ShadCN；
+  - 使用 `shadcn__get_add_command_for_items` 获取 add 命令并在 `apps/web` 执行；
+  - 可用 `shadcn__get_item_examples_from_registries` 查看示例并对照实现。
+
 无障碍与错误处理：
 - 在按钮上添加 aria-label，状态变更通过 `aria-live=polite` 公告。
 - 将 `meta.source==='cache'` 时在 UI 标注“数据来自缓存”。

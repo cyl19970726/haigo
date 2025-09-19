@@ -14,6 +14,7 @@ export interface WarehouseSummary {
     mediaSamples?: string[];
     serviceAreas?: string[];
     lastAuditAt?: string;
+    feePerUnit?: number;
 }
 export interface LogisticsInfo {
     carrier?: string;

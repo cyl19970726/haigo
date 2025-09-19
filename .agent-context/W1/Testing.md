@@ -22,6 +22,7 @@ Outcomes
   - Aptos testnet (Aptos Labs gateway)
 
 2) Environment Setup
+- For baseline env files and Docker bootstrap, follow **docs/architecture/6-部署与环境.md** (same setup used by L1 Directory tests).
 - Install dependencies:
   - `pnpm install`
 - Configure .env files (root and web):
@@ -37,6 +38,12 @@ Outcomes
     - `NEXT_PUBLIC_APTOS_ORDERS_MODULE=0x<after-deploy>`
 - Start Postgres (Docker, optional):
   - `docker compose -f docker/compose.poc.yml up -d`
+- Quick launch (separate terminals) once env is ready:
+  ```bash
+  pnpm --filter @haigo/shared build --watch
+  pnpm --filter @haigo/bff build && pnpm --filter @haigo/bff start
+  pnpm --filter @haigo/web dev
+  ```
 
 3) Deploy Move to Testnet (one-time per profile)
 - Command (uses scripts/deploy_aptos_testnet.sh):
@@ -165,4 +172,3 @@ Appendix B – Playwright MCP Hints
 - Assertions:
   - Expect visible text updates after `Refresh`
   - Expect error alert exists when invalid unstake occurs
-

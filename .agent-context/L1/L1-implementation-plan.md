@@ -21,6 +21,7 @@
   - 新增 Seller 目录页：`app/(seller)/warehouses/page.tsx`（或别名 `/directory`），展示筛选器与仓库卡片；卡片 CTA 跳转下单页 `/(merchant)/orders/new?warehouse=0x...`（对齐 O1）。
   - 新增目录 Hook：`features/directory/useWarehouseDirectory.ts` 管理筛选、分页、加载状态。
   - 新增展示组件：`features/directory/WarehouseCard.tsx`；必要时抽象 `WarehouseFilters`。
+  - UI 组件（ShadCN MCP）：通过 MCP 获取并安装 `card`、`button`、`input`、`select`、`badge`、`alert`、`toast`、`skeleton`、`pagination` 等组件，统一样式。
 - Shared/DTO
   - 复用 `packages/shared/src/dto/orders.ts` 的 `WarehouseSummary`、`WarehouseAvailability`；若需要在 Listing 显示/过滤存储费，建议在 `WarehouseSummary` 增加可选字段 `feePerUnit?: number`（万分比），供 L1 展示与筛选，O1 不强制依赖。
 
@@ -455,6 +456,12 @@ export default function WarehousesPage() {
   );
 }
 ```
+
+#### 2.4.1 ShadCN（MCP 集成）
+- 组件清单：Card、Button、Input、Select、Badge、Alert、Toast、Skeleton、Pagination；
+- MCP：使用 `shadcn__get_add_command_for_items` 获取安装命令；若需示例，调用 `shadcn__get_item_examples_from_registries`；
+- 约定：在 `apps/web` 根执行 add 命令，保持 components.json 与样式引入一致；
+- 验收：筛选器与卡片渲染一致，空态/加载态/错误态通过 Skeleton/Alert/Toast 呈现。
 
 - Seller Dashboard 入口：`apps/web/features/dashboard/SellerDashboard.tsx` 中新增「Find Warehouses」卡片，跳转至 `/warehouses`。
 

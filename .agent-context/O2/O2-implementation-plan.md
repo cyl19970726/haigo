@@ -39,6 +39,11 @@
 - 复用 apps/web/lib/api/media.ts 上传，随后签名 check_out；
 - 成功后轮询 GET /api/orders/:recordUid 或 timeline 接口。
 
+前端 UI（ShadCN MCP）：表单/媒体/反馈
+- 组件清单：Form、Input、Textarea、Button、Alert、Toast、Progress、Card、Skeleton；
+- MCP：使用 `shadcn__get_add_command_for_items` 获取并安装组件，必要时通过 `shadcn__get_item_examples_from_registries` 查看参考；
+- 验收：上传进度、提交状态、成功/失败反馈通过 Progress/Toast/Alert 呈现。
+
 路由锚点（对齐现有 Check-In 页面）：
 - 已有：`apps/web/app/(warehouse)/orders/[recordUid]/check-in/page.tsx`
 - 新增：`apps/web/app/(warehouse)/orders/[recordUid]/check-out/page.tsx`（承载 OrderCheckOutView）

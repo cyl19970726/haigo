@@ -23,6 +23,7 @@ import {
 } from '@shared/dto/orders';
 import { fetchOrderDetail, fetchOrderSummaries, fetchWarehouses } from '../../../lib/api/orders';
 import { hexToBytes } from '../../../lib/crypto/hex';
+import { useSearchParams } from 'next/navigation';
 import { NetworkGuard } from '../../../lib/wallet/network-guard';
 import { useWalletContext } from '../../../lib/wallet/context';
 import { deriveInboundLogistics } from '../utils';
@@ -112,6 +113,7 @@ const persistForm = (state?: OrderFormState | null) => {
 };
 
 export function CreateOrderView() {
+  const searchParams = useSearchParams();
   const {
     status,
     accountAddress,
@@ -189,6 +191,18 @@ export function CreateOrderView() {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    if (!searchParams) return;
+    const requestedWarehouse = searchParams.get('warehouse');
+    if (!requestedWarehouse || warehouses.length === 0) return;
+    const normalized = requestedWarehouse.toLowerCase();
+    const match = warehouses.find(
+      (item) => item.address.toLowerCase() === normalized || item.id.toLowerCase() === normalized
+    );
+    if (!match) return;
+    setFormState((prev) => (prev.warehouseId === match.id ? prev : { ...prev, warehouseId: match.id }));
+  }, [searchParams, warehouses]);
 
   useEffect(() => {
     persistForm(formState);
