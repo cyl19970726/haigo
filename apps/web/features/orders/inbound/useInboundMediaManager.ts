@@ -13,6 +13,7 @@ import {
 import type {
   OrderMediaAsset,
   OrderMediaHashAlgorithm,
+  OrderMediaStage,
   OrderMediaVerificationStatus
 } from '@shared/dto/orders';
 import { hashFileBlake3 } from '../../../lib/crypto/blake3';
@@ -86,7 +87,7 @@ export interface InboundMediaItem {
   fileName: string;
   fileType: string;
   fileSize: number;
-  stage: string;
+  stage: OrderMediaStage;
   category: string;
   blake3?: string;
   keccak256?: string;

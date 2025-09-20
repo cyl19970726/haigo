@@ -60,8 +60,14 @@ export class StakingListener implements OnModuleInit, OnModuleDestroy {
     this.indexerUrl = this.config.get<string>('indexerUrl', 'https://api.testnet.aptoslabs.com/v1/graphql');
     this.nodeApiUrl = this.config.get<string>('nodeApiUrl', 'https://api.testnet.aptoslabs.com/v1');
     this.aptosApiKey = this.config.get<string>('aptosApiKey', '');
-    this.pollingInterval = Number(process.env.STAKING_INGESTOR_INTERVAL_MS ?? this.config.get<number>('ingestion.pollingIntervalMs', 30_000));
-    this.pageSize = Number(process.env.STAKING_INGESTOR_PAGE_SIZE ?? this.config.get<number>('ingestion.pageSize', 25));
+    const defaultInterval = 45_000;
+    const defaultPageSize = 10;
+    this.pollingInterval = Number(
+      process.env.STAKING_INGESTOR_INTERVAL_MS ?? this.config.get<number>('ingestion.pollingIntervalMs', defaultInterval)
+    ) || defaultInterval;
+    this.pageSize = Number(
+      process.env.STAKING_INGESTOR_PAGE_SIZE ?? this.config.get<number>('ingestion.pageSize', defaultPageSize)
+    ) || defaultPageSize;
     this.maxPagesPerTick = Number(process.env.STAKING_INGESTOR_MAX_PAGES_PER_TICK ?? this.config.get<number>('ingestion.maxPagesPerTick', 1));
     this.startFromLatest = String(process.env.STAKING_INGESTOR_START_FROM_LATEST ?? this.config.get<boolean>('ingestion.startFromLatest', true)).toLowerCase() === 'true';
     this.backfillOffsetVersions = Number(process.env.STAKING_INGESTOR_BACKFILL_OFFSET_VERSIONS ?? this.config.get<number>('ingestion.backfillOffsetVersions', 0));
@@ -188,12 +194,15 @@ export class StakingListener implements OnModuleInit, OnModuleDestroy {
 
   private applyBackoff(error: unknown) {
     const s = error instanceof Error ? `${error.message} ${error.stack ?? ''}` : String(error);
-    const base = /\b(429|rate limit|408|timeout|timed out|fetch failed|ECONNRESET|ENOTFOUND|EAI_AGAIN|socket hang up|network)\b/i.test(s) ? 30_000 : 0;
+    const base = /\b(429|rate limit|408|timeout|timed out|fetch failed|ECONNRESET|ENOTFOUND|EAI_AGAIN|socket hang up|network)\b/i.test(s)
+      ? 30_000
+      : 0;
     if (!base) return;
     const jitter = 0.8 + Math.random() * 0.4;
     this.backoffMs = Math.min(Math.max(30_000, (this.backoffMs || 60_000) * 2), 10 * 60_000);
     const pause = Math.max(base, Math.floor(this.backoffMs * jitter));
     this.cooldownUntilMs = Date.now() + pause;
+    this.logger.warn(`Staking listener entering cooldown for ${Math.round(pause / 1000)}s due to: ${s}`);
   }
 
   // Minimal Fullnode fallback to fetch transaction hash/timestamp by version.

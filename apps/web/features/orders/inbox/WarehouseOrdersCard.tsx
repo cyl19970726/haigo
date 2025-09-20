@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Loader2 } from 'lucide-react';
+import { Loader2, RefreshCw } from 'lucide-react';
 import { ORDER_STATUS_LABELS } from '@shared/config';
 import type { OrderSummaryDto } from '@shared/dto/orders';
 import { formatSubunitsToApt } from '@shared/dto/orders';
@@ -12,7 +12,8 @@ import { Skeleton } from '../../../components/ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from '../../../components/ui/alert';
 import { Button } from '../../../components/ui/button';
 import { fetchOrderSummaries } from '../../../lib/api/orders';
-import { useWalletContext } from '../../../lib/wallet/context';
+import { useSessionAwareWallet } from '../../../lib/session/useSessionAwareWallet';
+import { cn } from '../../../lib/utils';
 
 const RECENT_LIMIT = 5;
 
@@ -52,8 +53,8 @@ const resolveStatusVariant = (status: OrderSummaryDto['status']): 'default' | 's
   }
 };
 
-export const WarehouseOrdersCard = () => {
-  const { accountAddress, status: walletStatus } = useWalletContext();
+export const WarehouseOrdersCard = ({ className }: { className?: string }) => {
+  const { activeAddress, walletStatus, hasMismatch, sessionAddress } = useSessionAwareWallet();
   const [loading, setLoading] = useState(true);
   const [orders, setOrders] = useState<OrderSummaryDto[]>([]);
   const [error, setError] = useState<string | undefined>();
@@ -67,7 +68,7 @@ export const WarehouseOrdersCard = () => {
   }, []);
 
   const loadOrders = useCallback(async () => {
-    if (!accountAddress) {
+    if (!activeAddress) {
       if (mountedRef.current) {
         setOrders([]);
         setError(undefined);
@@ -81,7 +82,7 @@ export const WarehouseOrdersCard = () => {
       setError(undefined);
     }
     try {
-      const response = await fetchOrderSummaries({ warehouseAddress: accountAddress, page: 1, pageSize: RECENT_LIMIT });
+      const response = await fetchOrderSummaries({ warehouseAddress: activeAddress, page: 1, pageSize: RECENT_LIMIT });
       if (!mountedRef.current) return;
       setOrders(response.data);
     } catch (err) {
@@ -94,17 +95,18 @@ export const WarehouseOrdersCard = () => {
       if (!mountedRef.current) return;
       setLoading(false);
     }
-  }, [accountAddress]);
+  }, [activeAddress]);
 
   useEffect(() => {
-    if (walletStatus === 'connected') {
-      void loadOrders();
-    } else {
+    const canFetch = Boolean(activeAddress) && (walletStatus === 'connected' || Boolean(sessionAddress));
+    if (!canFetch) {
       setLoading(false);
       setOrders([]);
       setError(undefined);
+      return;
     }
-  }, [accountAddress, walletStatus, loadOrders]);
+    void loadOrders();
+  }, [activeAddress, sessionAddress, walletStatus, loadOrders]);
 
   const handleRetry = useCallback(() => {
     void loadOrders();
@@ -126,11 +128,22 @@ export const WarehouseOrdersCard = () => {
         </ul>
       );
     }
-    if (!accountAddress) {
+    if (!activeAddress) {
       return (
         <div className="flex flex-col items-start gap-2 text-sm text-muted-foreground">
           <p>连接仓库钱包即可查看专属订单收件箱。</p>
         </div>
+      );
+    }
+
+    if (hasMismatch) {
+      return (
+        <Alert variant="destructive">
+          <AlertTitle>会话已更新</AlertTitle>
+          <AlertDescription className="text-sm">
+            当前钱包地址与登录会话不一致。请重新登录后查看仓库订单。
+          </AlertDescription>
+        </Alert>
       );
     }
     if (error) {
@@ -182,16 +195,29 @@ export const WarehouseOrdersCard = () => {
         ))}
       </ul>
     );
-  }, [accountAddress, error, handleRetry, loading, orders]);
+  }, [activeAddress, error, handleRetry, hasMismatch, loading, orders]);
 
   return (
-    <Card className="h-full">
-      <CardHeader>
-        <CardTitle>订单收件箱</CardTitle>
-        <CardDescription>最新来自商户的入库订单会在此处按时间排序。</CardDescription>
+    <Card className={cn('h-full', className)}>
+      <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+        <div className="space-y-1">
+          <CardTitle>订单收件箱</CardTitle>
+          <CardDescription>最新来自商户的入库订单会在此处按时间排序。</CardDescription>
+        </div>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          onClick={handleRetry}
+          aria-label="刷新订单列表"
+          className="self-start"
+          disabled={loading || !activeAddress}
+        >
+          <RefreshCw className={cn('h-4 w-4', loading ? 'animate-spin' : undefined)} aria-hidden />
+        </Button>
       </CardHeader>
       <CardContent>
-        {loading && accountAddress && !error && (
+        {loading && activeAddress && !error && (
           <div className="mb-4 flex items-center gap-2 text-xs text-muted-foreground">
             <Loader2 className="h-4 w-4 animate-spin" /> 正在加载最新订单…
           </div>

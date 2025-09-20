@@ -1,15 +1,53 @@
 'use client';
 
-import type { SignMessagePayload, SignMessageResponse } from '@aptos-labs/wallet-adapter-core';
+import type { AptosSignMessageInput, AptosSignMessageOutput } from '@aptos-labs/wallet-adapter-core';
 import type { AccountProfile } from '@shared/dto/registry';
 import { fetchSessionProfile, requestSessionChallenge, verifySession } from '../api/session';
 
-export type SignMessageFn = (payload: SignMessagePayload) => Promise<SignMessageResponse | null>;
+type WalletSignMessageResult = AptosSignMessageOutput & { publicKey?: string; fullMessage?: string };
+
+export type SignMessageFn = (payload: AptosSignMessageInput) => Promise<WalletSignMessageResult | null>;
+
+export interface EnsureSessionCallbacks {
+  onChallenge?: () => void;
+  onSigning?: () => void;
+  onVerifying?: () => void;
+}
+
+const HEX_PREFIX = '0x';
+
+const isHexString = (value: string) => /^[0-9a-f]+$/i.test(value);
+
+const toHexString = (input: unknown): string | null => {
+  if (input == null) return null;
+
+  if (input instanceof Uint8Array) {
+    if (!input.length) return null;
+    const hex = Array.from(input, (byte) => byte.toString(16).padStart(2, '0')).join('');
+    return `${HEX_PREFIX}${hex}`;
+  }
+
+  if (typeof input === 'string') {
+    const trimmed = input.startsWith(HEX_PREFIX) ? input.slice(2) : input;
+    if (!trimmed.length || trimmed.length % 2 !== 0 || !isHexString(trimmed)) {
+      return null;
+    }
+    return `${HEX_PREFIX}${trimmed.toLowerCase()}`;
+  }
+
+  if (typeof input === 'object' && typeof (input as { toString?: () => string }).toString === 'function') {
+    const text = (input as { toString: () => string }).toString();
+    return toHexString(text);
+  }
+
+  return null;
+};
 
 export async function ensureSession(
   address: string,
   signMessage?: SignMessageFn,
-  fallbackPublicKey?: string
+  fallbackPublicKey?: string,
+  callbacks?: EnsureSessionCallbacks
 ): Promise<AccountProfile> {
   const normalizedAddress = address.toLowerCase();
 
@@ -22,8 +60,10 @@ export async function ensureSession(
     throw new Error('Wallet does not support message signing.');
   }
 
+  callbacks?.onChallenge?.();
   const challenge = await requestSessionChallenge(normalizedAddress);
 
+  callbacks?.onSigning?.();
   const signature = await signMessage({
     message: challenge.message,
     nonce: challenge.nonce,
@@ -33,15 +73,22 @@ export async function ensureSession(
   });
 
   // 兼容部分钱包不返回 publicKey 的情况，回退使用上下文提供的 accountPublicKey
-  const publicKey = signature?.publicKey || fallbackPublicKey;
-  if (!signature?.signature || !publicKey) {
+  const publicKeyHex = toHexString(signature?.publicKey) ?? toHexString(fallbackPublicKey);
+  const rawSignatureValue =
+    (signature as any)?.signature?.signature ??
+    (signature as any)?.signature ??
+    (typeof signature?.signature === 'string' ? signature.signature : null);
+  const signatureHex = toHexString(rawSignatureValue ?? signature?.signature);
+
+  if (!signatureHex || !publicKeyHex) {
     throw new Error('Wallet did not return a login signature.');
   }
 
+  callbacks?.onVerifying?.();
   const verified = await verifySession({
     address: normalizedAddress,
-    publicKey,
-    signature: signature.signature,
+    publicKey: publicKeyHex,
+    signature: signatureHex,
     fullMessage: (signature as any)?.fullMessage
   });
 

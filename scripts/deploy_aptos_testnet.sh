@@ -74,6 +74,7 @@ echo "==> Post-publish initialization & configuration"
 # init_*_entry are public wrappers for idempotent initialization.
 aptos move run --profile "$PROFILE" --assume-yes --function-id "$ACCOUNT_ADDR::registry::init_registry_entry" || true
 aptos move run --profile "$PROFILE" --assume-yes --function-id "$ACCOUNT_ADDR::orders::init_orders_entry" || true
+aptos move run --profile "$PROFILE" --assume-yes --function-id "$ACCOUNT_ADDR::staking::init_staking_entry" || true
 aptos move run --profile "$PROFILE" --assume-yes --function-id "$ACCOUNT_ADDR::orders::configure" \
   --args address:$ACCOUNT_ADDR bool:false || true
 

@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState, type ChangeEvent, type FormEvent } from 'react';
+import type { InputGenerateTransactionPayloadData, SimpleTransaction } from '@aptos-labs/ts-sdk';
 import {
   ORDER_DEFAULTS,
   ORDER_EVENT_TYPES,
@@ -36,7 +37,14 @@ type SimulationState =
   | { status: 'idle' }
   | { status: 'loading' }
   | { status: 'error'; message: string }
-  | { status: 'success'; gasUsed: number; gasUnitPrice: number; estimatedFee: number; transaction: any };
+  | {
+      status: 'success';
+      gasUsed: number;
+      gasUnitPrice: number;
+      estimatedFee: number;
+      transaction: SimpleTransaction;
+      payload: InputGenerateTransactionPayloadData;
+    };
 
 type TransactionStage = 'idle' | 'submitting' | 'pending' | 'success' | 'failed';
 
@@ -263,11 +271,7 @@ export function CreateOrderView() {
     []
   );
 
-  const buildTransaction = useCallback(async () => {
-    if (!accountAddress) {
-      throw new Error('Connect your wallet before submitting an order.');
-    }
-
+  const buildTransactionPayload = useCallback((): InputGenerateTransactionPayloadData => {
     const inboundLogistics = deriveInboundLogistics({
       carrier: formState.carrier,
       trackingNumber: formState.trackingNumber,
@@ -278,25 +282,20 @@ export function CreateOrderView() {
     const mediaCategory = mediaHash ? formState.mediaCategory : null;
     const mediaBytes = mediaHash ? Array.from(hexToBytes(mediaHash)) : null;
 
-    return aptos.transaction.build.simple({
-      sender: accountAddress,
-      data: {
-        function: buildFunctionAddress,
-        typeArguments: [APTOS_COIN_TYPE],
-        functionArguments: [
-          selectedWarehouse?.address ?? formState.warehouseId,
-          inboundLogistics ?? null,
-          pricing.amountSubunits.toString(),
-          pricing.insuranceFeeSubunits.toString(),
-          pricing.platformFeeSubunits.toString(),
-          mediaCategory,
-          mediaBytes ?? null
-        ]
-      }
-    });
+    return {
+      function: buildFunctionAddress,
+      typeArguments: [APTOS_COIN_TYPE],
+      functionArguments: [
+        selectedWarehouse?.address ?? formState.warehouseId,
+        inboundLogistics ?? null,
+        pricing.amountSubunits.toString(),
+        pricing.insuranceFeeSubunits.toString(),
+        pricing.platformFeeSubunits.toString(),
+        mediaCategory,
+        mediaBytes ?? null
+      ]
+    } satisfies InputGenerateTransactionPayloadData;
   }, [
-    accountAddress,
-    aptos.transaction,
     buildFunctionAddress,
     formState.carrier,
     formState.mediaCategory,
@@ -318,7 +317,8 @@ export function CreateOrderView() {
 
     setSimulationState({ status: 'loading' });
     try {
-      const transaction = await buildTransaction();
+      const payload = buildTransactionPayload();
+      const transaction = await aptos.transaction.build.simple({ sender: accountAddress, data: payload });
       const [result] = await aptos.transaction.simulate.simple({ transaction });
       if (!result) {
         throw new Error('Simulation returned no results.');
@@ -328,18 +328,20 @@ export function CreateOrderView() {
       }
       const gasUsed = Number((result as any).gas_used ?? (result as any).gasUsed ?? 0);
       const gasUnitPrice = Number((result as any).gas_unit_price ?? (result as any).gasUnitPrice ?? 0);
+      const estimatedFee = ((gasUsed || 0) * (gasUnitPrice || 0)) / OCTA_PER_APT;
       setSimulationState({
         status: 'success',
         transaction,
+        payload,
         gasUsed,
         gasUnitPrice,
-        estimatedFee: ((gasUsed || 0) * (gasUnitPrice || 0)) / OCTA_PER_APT
+        estimatedFee
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Simulation failed';
       setSimulationState({ status: 'error', message });
     }
-  }, [accountAddress, aptos.transaction.simulate, buildTransaction]);
+  }, [accountAddress, aptos.transaction.build, aptos.transaction.simulate, buildTransactionPayload]);
 
   const pollTransaction = useCallback(
     async (hash: string) => {
@@ -390,9 +392,20 @@ export function CreateOrderView() {
 
       setTransactionState({ stage: 'submitting' });
       try {
+        const payload =
+          simulationState.status === 'success'
+            ? simulationState.payload
+            : buildTransactionPayload();
+
         const transaction =
-          simulationState.status === 'success' ? simulationState.transaction : await buildTransaction();
-        const result = await signAndSubmitTransaction(transaction);
+          simulationState.status === 'success'
+            ? simulationState.transaction
+            : await aptos.transaction.build.simple({ sender: accountAddress, data: payload });
+
+        const result = await signAndSubmitTransaction({
+          sender: accountAddress,
+          data: payload
+        });
         const txnHash =
           typeof result === 'string'
             ? result
@@ -454,12 +467,13 @@ export function CreateOrderView() {
       validateStep,
       accountAddress,
       simulationState,
-      buildTransaction,
+      buildTransactionPayload,
       signAndSubmitTransaction,
       networkStatus.expected,
       pollTransaction,
-      clearTransientState,
-      refreshOrders
+      refreshOrders,
+      attachDraftTransaction,
+      draftRecordUid
     ]
   );
   const pricingRows = useMemo(

@@ -10,6 +10,7 @@ declare const global: typeof globalThis & { fetch: ReturnType<typeof vi.fn> };
 const mockFetchWarehouses = vi.fn();
 const mockFetchOrderDetail = vi.fn();
 const mockFetchOrderSummaries = vi.fn();
+const mockAttachDraftTransaction = vi.fn();
 
 const buildOrderSummariesResponse = (items: OrderSummaryDto[] = []) => ({
   data: items,
@@ -31,7 +32,10 @@ vi.mock('next/navigation', () => ({
 vi.mock('../../../lib/api/orders', () => ({
   fetchWarehouses: (...args: Parameters<typeof mockFetchWarehouses>) => mockFetchWarehouses(...args),
   fetchOrderDetail: (...args: Parameters<typeof mockFetchOrderDetail>) => mockFetchOrderDetail(...args),
-  fetchOrderSummaries: (...args: Parameters<typeof mockFetchOrderSummaries>) => mockFetchOrderSummaries(...args)
+  fetchOrderSummaries: (...args: Parameters<typeof mockFetchOrderSummaries>) => mockFetchOrderSummaries(...args),
+  attachDraftTransaction: (
+    ...args: Parameters<typeof mockAttachDraftTransaction>
+  ) => mockAttachDraftTransaction(...args)
 }));
 
 const transactionBuild = vi.fn(() => ({ mock: 'txn' }));
@@ -97,6 +101,7 @@ const resetMocks = () => {
   mockFetchWarehouses.mockReset();
   mockFetchOrderDetail.mockReset();
   mockFetchOrderSummaries.mockReset();
+  mockAttachDraftTransaction.mockReset();
   searchParams = new URLSearchParams();
   contextRef.current = {
     ...walletContext,
@@ -130,6 +135,7 @@ beforeEach(() => {
   ] as WarehouseSummary[]);
   mockFetchOrderDetail.mockResolvedValue(null);
   mockFetchOrderSummaries.mockResolvedValue(buildOrderSummariesResponse());
+  mockAttachDraftTransaction.mockResolvedValue(true);
 });
 
 describe('CreateOrderView', () => {

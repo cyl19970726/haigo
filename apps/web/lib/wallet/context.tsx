@@ -11,8 +11,9 @@ import {
 } from 'react';
 import { AptosWalletAdapterProvider, useWallet } from '@aptos-labs/wallet-adapter-react';
 import { Aptos, AptosConfig, Network } from '@aptos-labs/ts-sdk';
+import { buildNetworkStatus, normalizeNetworkInput } from './network';
 
-const EXPECTED_NETWORK = (process.env.NEXT_PUBLIC_APTOS_NETWORK || 'testnet').toLowerCase();
+const EXPECTED_NETWORK = process.env.NEXT_PUBLIC_APTOS_NETWORK || 'testnet';
 
 export type WalletConnectionStatus = 'disconnected' | 'connecting' | 'connected';
 
@@ -44,7 +45,7 @@ export interface WalletContextValue {
 const WalletContext = createContext<WalletContextValue | undefined>(undefined);
 
 const resolveNetwork = (): Network => {
-  switch (EXPECTED_NETWORK) {
+  switch ((EXPECTED_NETWORK || '').toLowerCase()) {
     case 'mainnet':
       return Network.MAINNET;
     case 'testnet':
@@ -54,19 +55,21 @@ const resolveNetwork = (): Network => {
     case 'local':
       return Network.LOCAL;
     default:
-      return Network.DEVNET;
+      return Network.TESTNET;
   }
 };
 
-const computeNetworkStatus = (actual?: string | null): NetworkStatus => {
-  const normalizedActual = actual?.toLowerCase();
-  return {
-    expected: EXPECTED_NETWORK,
-    actual: normalizedActual,
-    isMatch: Boolean(normalizedActual && normalizedActual === EXPECTED_NETWORK),
-    lastChecked: Date.now(),
-    error: normalizedActual ? undefined : 'Wallet network unavailable'
-  };
+const resolveExpectedNetwork = (): Network => normalizeNetworkInput(EXPECTED_NETWORK) ?? resolveNetwork();
+
+const computeNetworkStatus = (params?: { name?: string | null; chainId?: number | null }): NetworkStatus => {
+  const expected = resolveExpectedNetwork();
+  const result = buildNetworkStatus({
+    expected,
+    actualName: params?.name,
+    actualChainId: params?.chainId ?? null,
+    lastChecked: Date.now()
+  });
+  return result;
 };
 
 const WalletContextBridge = ({ children }: { children: ReactNode }) => {
@@ -85,7 +88,9 @@ const WalletContextBridge = ({ children }: { children: ReactNode }) => {
   } = useWallet();
 
   const [connectionError, setConnectionError] = useState<string>();
-  const [networkStatus, setNetworkStatus] = useState<NetworkStatus>(() => computeNetworkStatus(network?.name));
+  const [networkStatus, setNetworkStatus] = useState<NetworkStatus>(() =>
+    computeNetworkStatus({ name: network?.name, chainId: network?.chainId })
+  );
 
   const aptos = useMemo(() => {
     const config = new AptosConfig({ network: resolveNetwork() });
@@ -93,24 +98,24 @@ const WalletContextBridge = ({ children }: { children: ReactNode }) => {
   }, []);
 
   useEffect(() => {
-    setNetworkStatus(computeNetworkStatus(network?.name));
-  }, [network?.name, connected]);
+    setNetworkStatus(computeNetworkStatus({ name: network?.name, chainId: network?.chainId }));
+  }, [network?.name, network?.chainId, connected]);
 
   const refreshNetworkStatus = useCallback(
     async (retries = 0): Promise<NetworkStatus> => {
       let attempt = 0;
-      let status = computeNetworkStatus(network?.name);
+      let status = computeNetworkStatus({ name: network?.name, chainId: network?.chainId });
 
       while (!status.actual && attempt < retries) {
         attempt += 1;
         await new Promise((resolve) => setTimeout(resolve, Math.min(2000, 250 * 2 ** attempt)));
-        status = computeNetworkStatus(network?.name);
+        status = computeNetworkStatus({ name: network?.name, chainId: network?.chainId });
       }
 
       setNetworkStatus(status);
       return status;
     },
-    [network?.name]
+    [network?.name, network?.chainId]
   );
 
   const connect = useCallback(

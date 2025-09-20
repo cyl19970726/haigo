@@ -1,3 +1,3 @@
-export * from './dto/index.js';
-export * from './gql/index.js';
-export * from './config/index.js';
+export * from './dto';
+export * from './gql';
+export * from './config';

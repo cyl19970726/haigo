@@ -1,2 +1,2 @@
-export * from './aptos.js';
-export * from './orders.js';
+export * from './aptos';
+export * from './orders';

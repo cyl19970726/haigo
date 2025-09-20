@@ -2,12 +2,20 @@
 
 import { useCallback, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { buttonVariants } from '../../components/ui/button';
+import { cn } from '../../lib/utils';
 import { useWalletContext } from '../../lib/wallet/context';
 import { logoutSession } from '../../lib/api/session';
+import { useSessionProfile } from '../../lib/session/profile-context';
 
-export function SignOutButton(): JSX.Element {
+type SignOutButtonProps = {
+  className?: string;
+};
+
+export function SignOutButton({ className }: SignOutButtonProps): JSX.Element {
   const router = useRouter();
   const { disconnect } = useWalletContext();
+  const { clearLocalSession } = useSessionProfile();
   const [working, setWorking] = useState(false);
 
   const onSignOut = useCallback(async () => {
@@ -27,10 +35,11 @@ export function SignOutButton(): JSX.Element {
         }
       } catch {}
     } finally {
+      clearLocalSession();
       setWorking(false);
       router.push('/');
     }
-  }, [disconnect, router, working]);
+  }, [clearLocalSession, disconnect, router, working]);
 
   return (
     <button
@@ -38,7 +47,11 @@ export function SignOutButton(): JSX.Element {
       aria-label="Sign out"
       onClick={() => void onSignOut()}
       disabled={working}
-      className="inline-flex items-center justify-center rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 disabled:opacity-60"
+      className={cn(
+        buttonVariants({ variant: 'outline', size: 'sm' }),
+        'gap-1 font-medium',
+        className
+      )}
     >
       {working ? 'Signing out…' : 'Sign out'}
     </button>
@@ -46,4 +59,3 @@ export function SignOutButton(): JSX.Element {
 }
 
 export default SignOutButton;
-

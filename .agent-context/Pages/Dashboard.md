@@ -104,3 +104,60 @@
 
 ## 结论
 - 当前仓库侧 Dashboard 功能与数据接入基本达到规范；卖家侧仍需补齐“最近订单/快捷入口/配置提示”三项以全面满足 `docs/architecture/5-前端体验.md` 的格式与验收标准。
+
+## 后端实现评审（合理性）
+- 目录（/api/warehouses）
+  - Controller 解析筛选/分页并返回 `{ data, meta }` 封装，合理。
+  - Repository 合并账户+质押+费率+Hasura Profile，支持缓存与排序；分页在内存切片，PoC 可接受，后续建议下推到 SQL 以避免全量聚合。
+- 订单（/api/orders, /api/orders/:recordUid, /api/orders/drafts, /api/orders/drafts/:recordUid/attach-tx）
+  - 查询：地址格式校验、二选一的 seller/warehouse 过滤、状态白名单、分页上下界，合理。
+  - 汇总映射：DB 枚举态 → 前端态（PENDING/CREATED/…）一致；`pricing` 优先事件数据，回落草稿，合理。
+  - 详情：时间线基于 `order_events`，但仅映射 `OrderCreated→CREATED`，其它链上阶段暂记作 NOTE（见事件流小节）。
+  - 草稿与交易绑定：`createDraft` 写入 payloadJson，`attach-tx` 绑定 `txn_hash`，监听器基于 hash 合并，合理且健壮。
+- 媒体（/api/media/uploads）
+  - Multer 内存存储 + 200MB 限制；MIME 白名单；BLAKE3 服务端重算并比对，合理。
+  - 存储路径 `storage/media/{recordUid}/{stage}/{category}/filename`，字段落库完整。
+  - 缺失：`POST /api/orders/:recordUid/media-verify`（前端已调用）。建议补一个轻量端点触发/模拟核验（返回 verifying/verified），并记录尝试次数与错误信息以丰富时间线。
+- 质押（/api/staking/:warehouseAddress）
+  - 读链上 view（get_stake/get_storage_fee），失败回落缓存，合理。
+  - 可补：仓库 Dashboard 卡片读取此接口（前端待实现）。
+- 指标与弹性
+  - 目录/订单已打点；订单监听器有 last_version/error 指标与退避，合理。
+  - 可补：媒体上传/核验成功率、大小分布，防滥用限流策略（上传/列表）。
+- 安全与鉴权（PoC 现状）
+  - 目前未对订单/媒体/目录加鉴权；PoC 可接受。后续建议：基于会话 Cookie 保护写接口（草稿/上传/核验/attach-tx），并加入速率限制与基础签名校验。
+
+## 事件流评审（合理性）
+- 卖家创建订单（已成链路）
+  - FE：Review 步骤创建草稿 → 钱包签名 `create_order` → 拿到 `txnHash` → 调 `attachDraftTransaction` 绑定 → 轮询确认 → 试拉取 `GET /api/orders/:recordUid`。
+  - BFF：`OrdersEventListener` 监听 `OrderCreated`（GraphQL）→ 通过 `by_version` 查 txn 元数据 → `applyOrderCreatedEvent` 合并草稿或回落按 `order-<id>-<hash>` 生成 `recordUid` → `orders` 与 `order_events` 落库。
+  - 判定：链路闭环合理，一致性依赖索引器延迟，前端已做乐观态与兜底提示，符合预期。
+- 仓库入库 Check-in（部分缺失）
+  - FE：上传媒体（BLAKE3）→ 可触发“重新核验”`POST /api/orders/:recordUid/media-verify`（当前 BFF 缺失）→ 钱包签名 `check_in(order_id, logistics, category, mediaBytes)` → 轮询确认 → 期望时间线/状态进位。
+  - BFF：监听器当前仅处理 `OrderCreated`，未处理 `CheckedIn/SetInStorage/CheckedOut` 三类事件；因此状态不会从 CREATED 进位，时间线也不会新增节点；核验端点缺失导致“重验”按钮失败。
+  - 判定：需补全监听与端点才能完成“入库→在库→出库”的闭环。
+
+## 改进建议（优先级）
+- P0：扩展订单事件监听器
+  - 新增处理 `ORDER_EVENT_TYPES.CHECKED_IN/SET_IN_STORAGE/CHECKED_OUT` 的查询与 `processEvent` 分支，映射到 DB：
+    - `orders.status`：WAREHOUSE_IN/IN_STORAGE/WAREHOUSE_OUT
+    - `order_events.type`：对应事件名，带上物流/媒体哈希等数据
+  - `orders.repository.getDetail` 时间线映射上述事件为 `stage=WAREHOUSE_IN/IN_STORAGE/WAREHOUSE_OUT`（而非 NOTE）。
+- P0：实现 `POST /api/orders/:recordUid/media-verify`
+  - 请求体：`assetId?`、`hashValue`、`stage`、`category?`
+  - 行为：写入一条“核验中/核验结果”记录（或更新 MediaAsset 字段 `matchedOffchain/verificationStatus/attempts/lastVerificationAt`），立即返回 `{ status: 'verifying' }`；后台任务（或定时器）可将其置为 `verified/failed`。
+- P1：Seller “最近订单” 卡片
+  - 复用 `fetchOrderSummaries({ sellerAddress, page:1, pageSize:5 })`，补齐卖家 Dashboard 规范。
+- P1：仓库质押/费率卡片
+  - 读取 `/api/staking/:warehouseAddress`，展示 `stakedAmount/minRequired/feePerUnit`。
+- P2：一致性与易用性
+  - `orders.repository.listSummaries` 的 `createdAt/updatedAt` 优先使用 `chainTimestamp`（存在时）以更符合链上时间。
+  - `CreateOrderView` 可选读取 BFF 返回的 `signPayload` 以减少前端函数参数重复拼装风险（两边保持一致）。
+  - 媒体大小策略：细分并校验不同 MIME 的大小上限（IMAGE 15MB/VIDEO 200MB/DOC 10MB），与前端文案一致。
+  - 上传存储：内存存储适合 PoC，后续改为磁盘/对象存储与流式哈希，避免大文件占用内存。
+- P2：鉴权与配额
+  - 对写接口（草稿、上传、核验、attach-tx）要求会话 Cookie；结合基础速率限制、请求体大小限制与防刷策略。
+
+## 结论（后端与事件流）
+- 卖家侧从“草稿→上链→索引→合并”闭环已合理可用。
+- 仓库侧“入库→核验→在库/出库”链路的后端监听与核验端点尚未补全，导致状态无法进位与按钮失败。按上方 P0 优先级补齐后，Dashboard 的数据与交互将与规范完全对齐。

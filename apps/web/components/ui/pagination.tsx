@@ -3,15 +3,15 @@ import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { forwardRef } from 'react';
 import { cn } from '../../lib/utils';
 
-const Pagination = ({ className, ...props }: HTMLAttributes<nav>) => (
+const Pagination = ({ className, ...props }: HTMLAttributes<HTMLElement>) => (
   <nav role="navigation" aria-label="pagination" className={cn('mx-auto flex w-full justify-center', className)} {...props} />
 );
 
-const PaginationContent = ({ className, ...props }: HTMLAttributes<ul>) => (
+const PaginationContent = ({ className, ...props }: HTMLAttributes<HTMLUListElement>) => (
   <ul className={cn('flex flex-row items-center gap-1', className)} {...props} />
 );
 
-const PaginationItem = ({ className, ...props }: HTMLAttributes<li>) => <li className={cn('', className)} {...props} />;
+const PaginationItem = ({ className, ...props }: HTMLAttributes<HTMLLIElement>) => <li className={cn('', className)} {...props} />;
 
 const PaginationLink = forwardRef<ElementRef<'a'>, ComponentPropsWithoutRef<'a'>>(({ className, ...props }, ref) => (
   <a

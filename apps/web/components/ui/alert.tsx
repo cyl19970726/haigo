@@ -33,9 +33,10 @@ const icons: Record<NonNullable<AlertProps['variant']>, typeof Info> = {
 };
 
 const Alert = forwardRef<HTMLDivElement, AlertProps>(({ className, variant = 'default', children, ...props }, ref) => {
-  const Icon = icons[variant];
+  const resolvedVariant = (variant ?? 'default') as NonNullable<AlertProps['variant']>;
+  const Icon = icons[resolvedVariant];
   return (
-    <div ref={ref} role="alert" className={cn(alertVariants({ variant }), className)} {...props}>
+    <div ref={ref} role="alert" className={cn(alertVariants({ variant: resolvedVariant }), className)} {...props}>
       <Icon className="h-4 w-4" />
       {children}
     </div>

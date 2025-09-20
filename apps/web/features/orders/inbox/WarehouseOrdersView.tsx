@@ -21,7 +21,7 @@ import { Skeleton } from '../../../components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../../components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../../components/ui/tabs';
 import { fetchOrderSummaries, type OrderSummariesMeta } from '../../../lib/api/orders';
-import { useWalletContext } from '../../../lib/wallet/context';
+import { useSessionAwareWallet } from '../../../lib/session/useSessionAwareWallet';
 
 type StatusFilter = 'ALL' | OrderSummaryDto['status'];
 
@@ -86,7 +86,7 @@ const initialState: WarehouseOrdersState = {
 };
 
 export const WarehouseOrdersView = () => {
-  const { accountAddress, status: walletStatus } = useWalletContext();
+  const { activeAddress, sessionAddress, walletAddress, walletStatus, hasMismatch } = useSessionAwareWallet();
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('ALL');
   const [state, setState] = useState<WarehouseOrdersState>(initialState);
 
@@ -119,29 +119,30 @@ export const WarehouseOrdersView = () => {
   );
 
   useEffect(() => {
-    if (walletStatus !== 'connected') {
+    const canQuery = Boolean(activeAddress) && (walletStatus === 'connected' || Boolean(sessionAddress));
+    if (!canQuery) {
       setState(initialState);
       return;
     }
-    void fetchData({ address: accountAddress, status: statusFilter, page: 1 });
-  }, [accountAddress, walletStatus, statusFilter, fetchData]);
+    void fetchData({ address: activeAddress ?? undefined, status: statusFilter, page: 1 });
+  }, [activeAddress, sessionAddress, walletStatus, statusFilter, fetchData]);
 
   const onPageChange = useCallback(
     (direction: 'prev' | 'next') => {
-      if (!accountAddress) return;
+      if (!activeAddress) return;
       const currentPage = state.meta.page ?? 1;
       const totalPages = Math.max(1, Math.ceil((state.meta.total ?? 0) / PAGE_SIZE));
       const nextPage = direction === 'prev' ? Math.max(1, currentPage - 1) : Math.min(totalPages, currentPage + 1);
       if (nextPage === currentPage) return;
-      void fetchData({ address: accountAddress, status: statusFilter, page: nextPage });
+      void fetchData({ address: activeAddress, status: statusFilter, page: nextPage });
     },
-    [accountAddress, fetchData, state.meta.page, state.meta.total, statusFilter]
+    [activeAddress, fetchData, state.meta.page, state.meta.total, statusFilter]
   );
 
   const onManualRefresh = useCallback(() => {
-    if (!accountAddress) return;
-    void fetchData({ address: accountAddress, status: statusFilter, page: state.meta.page ?? 1 });
-  }, [accountAddress, fetchData, state.meta.page, statusFilter]);
+    if (!activeAddress) return;
+    void fetchData({ address: activeAddress, status: statusFilter, page: state.meta.page ?? 1 });
+  }, [activeAddress, fetchData, state.meta.page, statusFilter]);
 
   const dataContent = useMemo(() => {
     if (state.loading) {
@@ -151,6 +152,25 @@ export const WarehouseOrdersView = () => {
             <Skeleton key={index} className="h-12 w-full" />
           ))}
         </div>
+      );
+    }
+
+    if (!activeAddress) {
+      return (
+        <div className="rounded-md border border-dashed p-6 text-sm text-muted-foreground">
+          连接仓库钱包并完成登录后，可在此查看订单列表。
+        </div>
+      );
+    }
+
+    if (hasMismatch) {
+      return (
+        <Alert variant="destructive">
+          <AlertTitle>钱包地址已更新</AlertTitle>
+          <AlertDescription className="text-sm">
+            检测到登录会话地址与当前钱包不一致，系统已自动退出旧会话。请重新登录后再试。
+          </AlertDescription>
+        </Alert>
       );
     }
 
@@ -206,7 +226,7 @@ export const WarehouseOrdersView = () => {
         </TableBody>
       </Table>
     );
-  }, [state]);
+  }, [activeAddress, hasMismatch, state]);
 
   const totalPages = useMemo(
     () => Math.max(1, Math.ceil((state.meta.total ?? 0) / PAGE_SIZE)),
@@ -221,12 +241,17 @@ export const WarehouseOrdersView = () => {
             <CardTitle>Warehouse Inbox</CardTitle>
             <CardDescription>Filter by status to review the latest inbound tasks for the warehouse.</CardDescription>
           </div>
-          <Button variant="outline" size="sm" onClick={onManualRefresh} disabled={state.loading || walletStatus !== 'connected'}>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onManualRefresh}
+            disabled={state.loading || (!sessionAddress && walletStatus !== 'connected')}
+          >
             <RefreshCcw className="mr-1 h-4 w-4" /> Refresh
           </Button>
         </CardHeader>
         <CardContent>
-          {walletStatus !== 'connected' ? (
+          {walletStatus !== 'connected' && !sessionAddress ? (
             <Alert variant="info">
               <AlertTitle>Warehouse wallet not connected</AlertTitle>
               <AlertDescription>Connect to view orders associated with this warehouse.</AlertDescription>

@@ -19,6 +19,7 @@ import { NetworkGuard } from '../../lib/wallet/network-guard';
 import { useWalletContext } from '../../lib/wallet/context';
 import { useRouter } from 'next/navigation';
 import { ensureSession } from '../../lib/session/ensureSession';
+import { useSessionProfile } from '../../lib/session/profile-context';
 
 const ROLE_OPTIONS = [
   { value: 'seller', label: 'Seller' },
@@ -148,6 +149,7 @@ export function RegisterView() {
     signAndSubmitTransaction,
     signMessage
   } = useWalletContext();
+  const { setSessionProfile } = useSessionProfile();
 
   type SignAndSubmitTransactionInput = Parameters<typeof signAndSubmitTransaction>[0];
   type RegisterTransactionInput = SignAndSubmitTransactionInput & { sender: string };
@@ -668,11 +670,15 @@ export function RegisterView() {
 
     const timer = setTimeout(() => setShowRedirectCta(true), 60_000);
 
-    if (accountInfo?.role && accountAddress) {
-      const path = accountInfo.role === 'seller' ? '/dashboard/seller' : '/dashboard/warehouse';
+    if (accountAddress) {
       void (async () => {
         try {
-          await ensureSession(accountAddress, signMessage ?? undefined, accountPublicKey ?? undefined);
+          const profile = await ensureSession(accountAddress, signMessage ?? undefined, accountPublicKey ?? undefined);
+          if (profile) {
+            setSessionProfile(profile);
+          }
+          const targetRole = profile?.role ?? accountInfo?.role ?? role;
+          const path = targetRole === 'seller' ? '/dashboard/seller' : '/dashboard/warehouse';
           setRedirectAnnounce('Registration succeeded, redirecting to your dashboard…');
           setTimeout(() => router.push(path), 400);
         } catch (error) {
@@ -684,7 +690,16 @@ export function RegisterView() {
     }
 
     return () => clearTimeout(timer);
-  }, [transactionState.stage, accountInfo?.role, accountAddress, router, signMessage]);
+  }, [
+    transactionState.stage,
+    accountInfo?.role,
+    accountAddress,
+    router,
+    signMessage,
+    accountPublicKey,
+    role,
+    setSessionProfile
+  ]);
 
   return (
     <main className="register-shell" aria-live="polite">

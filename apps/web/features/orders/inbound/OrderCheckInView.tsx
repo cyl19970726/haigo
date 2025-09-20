@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ChangeEvent, DragEvent } from 'react';
+import type { InputGenerateTransactionPayloadData } from '@aptos-labs/ts-sdk';
 import {
   ORDER_MEDIA_ACCEPTED_MIME,
   ORDER_MEDIA_CATEGORIES,
@@ -494,12 +495,14 @@ export function OrderCheckInView({ recordUid }: OrderCheckInViewProps) {
 
       updateVerificationStatus(canonical.blake3, ORDER_MEDIA_VERIFICATION_STATUSES.VERIFYING, { increment: false });
 
+      const payload = {
+        function: CHECK_IN_FUNCTION,
+        functionArguments: [orderDetail.orderId, inboundLogistics, canonical.category, mediaBytes]
+      } satisfies InputGenerateTransactionPayloadData;
+
       const transaction = await aptos.transaction.build.simple({
         sender: accountAddress,
-        data: {
-          function: CHECK_IN_FUNCTION,
-          functionArguments: [orderDetail.orderId, inboundLogistics, canonical.category, mediaBytes]
-        }
+        data: payload
       });
 
       const [simulation] = await aptos.transaction.simulate.simple({ transaction });
@@ -507,7 +510,10 @@ export function OrderCheckInView({ recordUid }: OrderCheckInViewProps) {
         throw new Error((simulation as any)?.vm_status ?? 'Transaction simulation failed');
       }
 
-      const result = await signAndSubmitTransaction(transaction);
+      const result = await signAndSubmitTransaction({
+        sender: accountAddress,
+        data: payload
+      });
       const txnHash = resolveTransactionHash(result);
       if (!txnHash) {
         throw new Error('Wallet did not return a transaction hash');

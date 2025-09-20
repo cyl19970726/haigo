@@ -2,7 +2,7 @@ import {
   ORDER_MEDIA_HASH_ALGORITHMS,
   ORDER_MEDIA_STAGES,
   ORDER_MEDIA_VERIFICATION_STATUSES
-} from '../config/orders.js';
+} from '../config/orders';
 
 export type WarehouseAvailability = 'available' | 'limited' | 'maintenance';
 

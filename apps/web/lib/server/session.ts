@@ -41,3 +41,34 @@ export async function loadSessionProfileFromServer(): Promise<AccountProfile | n
   const payload = (await response.json()) as { data: any };
   return normalizeAccountResponse(payload.data ?? null);
 }
+
+export async function logoutSessionFromServer(): Promise<void> {
+  const cookieStore = cookies();
+  const sessionCookie = cookieStore.get(SESSION_COOKIE_NAME);
+  if (!sessionCookie?.value) {
+    cookieStore.delete?.(SESSION_COOKIE_NAME);
+    return;
+  }
+
+  const baseUrl = resolveBffBase();
+  if (baseUrl) {
+    try {
+      await fetch(`${baseUrl}/api/session/logout`, {
+        method: 'POST',
+        headers: {
+          cookie: `${SESSION_COOKIE_NAME}=${sessionCookie.value}`,
+          Accept: 'application/json'
+        },
+        cache: 'no-store'
+      });
+    } catch (error) {
+      console.warn('[HaiGo] Failed to logout session on BFF', error);
+    }
+  }
+
+  try {
+    cookieStore.delete?.(SESSION_COOKIE_NAME);
+  } catch (error) {
+    console.warn('[HaiGo] Unable to clear session cookie', error);
+  }
+}

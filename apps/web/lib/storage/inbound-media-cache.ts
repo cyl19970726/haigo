@@ -1,13 +1,13 @@
 'use client';
 
-import type { OrderMediaVerificationStatus } from '@shared/dto/orders';
+import type { OrderMediaStage, OrderMediaVerificationStatus } from '@shared/dto/orders';
 
 export interface CachedMediaItem {
   id: string;
   fileName: string;
   fileType: string;
   fileSize: number;
-  stage: string;
+  stage: OrderMediaStage;
   category: string;
   hashValue?: string;
   crossCheckHashValue?: string;

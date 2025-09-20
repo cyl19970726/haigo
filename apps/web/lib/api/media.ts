@@ -86,7 +86,18 @@ export const uploadMediaAsset = ({
         const parsed = responseText ? JSON.parse(responseText) : {};
         const data = extractData(parsed as ApiEnvelope<OrderMediaAsset> | OrderMediaAsset);
         const normalizedExpected = normalizeHash(hashValue);
-        const serverHash = data.hashValue ?? data.hash ?? data.hash_value ?? data.hashValueHex;
+        const legacyHash =
+          typeof data.hash === 'string'
+            ? data.hash
+            : data.hash && typeof data.hash === 'object' && 'value' in data.hash
+              ? (data.hash.value as string | undefined)
+              : undefined;
+        const rawData = data as unknown as Record<string, unknown>;
+        const serverHash =
+          data.hashValue ??
+          legacyHash ??
+          (rawData['hash_value'] as string | undefined) ??
+          (rawData['hashValueHex'] as string | undefined);
         if (serverHash) {
           const normalizedServer = normalizeHash(serverHash);
           if (normalizedServer !== normalizedExpected) {

@@ -3,6 +3,7 @@ export default () => ({
   port: Number(process.env.PORT) || 3001,
   hasuraUrl: process.env.HASURA_URL || 'http://localhost:8080',
   hasuraAdminSecret: process.env.HASURA_ADMIN_SECRET || '',
+  hasuraAuthToken: process.env.HASURA_AUTH_TOKEN || '',
   // Prefer Aptos Labs gateway which supports both REST and GraphQL with API key
   indexerUrl: process.env.APTOS_INDEXER_URL || 'https://api.testnet.aptoslabs.com/v1/graphql',
   // Base URL for Aptos Fullnode REST. Used as a fallback when the Indexer
@@ -11,6 +12,9 @@ export default () => ({
   // Optional API key for Aptos Build fullnode endpoints (e.g. api.buildwithaptos.com).
   // When set, BFF will send header `x-aptos-api-key` in fullnode fallback calls.
   aptosApiKey: process.env.APTOS_NODE_API_KEY || '',
+  debug: {
+    logDir: process.env.BFF_DEBUG_LOG_DIR || ''
+  },
   database: {
     url: process.env.DATABASE_URL || 'postgres://postgres:postgres@localhost:5432/haigo'
   },
