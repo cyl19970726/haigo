@@ -133,7 +133,19 @@ module haigo::staking {
         event::emit_event<StorageFeeUpdated>(&mut book.fee_updated_events, StorageFeeUpdated { warehouse: addr, fee_per_unit, timestamp: timestamp::now_seconds() });
     }
 
-    // -------- Test helpers --------
+    // -------- Admin & Test helpers --------
+    public entry fun set_credit_entry(admin: &signer, addr: address, credit: u64) acquires CreditBook {
+        assert!(signer::address_of(admin) == @haigo, error::permission_denied(E_INSUFFICIENT_CREDIT));
+        set_credit_internal(admin, addr, credit);
+    }
+
+    fun set_credit_internal(admin: &signer, addr: address, credit: u64) acquires CreditBook {
+        if (!exists<CreditBook>(@haigo)) { move_to(admin, CreditBook { credits: table::new() }); };
+        let book = borrow_global_mut<CreditBook>(@haigo);
+        if (table::contains(&book.credits, addr)) { let _ = table::remove(&mut book.credits, addr); };
+        if (credit > 0) { table::add(&mut book.credits, addr, credit); }
+    }
+
     #[test_only]
     public fun init_for_test(admin: &signer) {
         let admin_addr = signer::address_of(admin);
@@ -153,11 +165,7 @@ module haigo::staking {
 
     #[test_only]
     public fun set_credit(admin: &signer, addr: address, credit: u64) acquires CreditBook {
-        assert!(signer::address_of(admin) == @haigo, error::permission_denied(E_INSUFFICIENT_CREDIT));
-        if (!exists<CreditBook>(@haigo)) { move_to(admin, CreditBook { credits: table::new() }); };
-        let book = borrow_global_mut<CreditBook>(@haigo);
-        if (table::contains(&book.credits, addr)) { let _ = table::remove(&mut book.credits, addr); };
-        if (credit > 0) { table::add(&mut book.credits, addr, credit); }
+        set_credit_entry(admin, addr, credit);
     }
 
     #[test(aptos_framework = @0x1, admin = @haigo)]

@@ -12,7 +12,7 @@ export class StakingService {
   private readonly moduleAddress: string;
 
   constructor(private readonly repo: StakingRepository, private readonly config: ConfigService) {
-    this.nodeApiUrl = this.config.get<string>('nodeApiUrl', 'https://api.testnet.aptoslabs.com/v1');
+    this.nodeApiUrl = this.config.get<string>('nodeApiUrl', 'https://fullnode.testnet.aptoslabs.com/v1');
     this.aptosApiKey = this.config.get<string>('aptosApiKey', '');
     const envModule = process.env.NEXT_PUBLIC_APTOS_MODULE || this.config.get<string>('NEXT_PUBLIC_APTOS_MODULE');
     this.moduleAddress = (envModule && envModule.trim()) || APTOS_MODULE_ADDRESS;

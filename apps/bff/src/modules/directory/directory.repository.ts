@@ -4,6 +4,7 @@ import type { Prisma } from '@prisma/client';
 import type { WarehouseSummary } from '@haigo/shared/dto/orders';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service.js';
 import { HasuraClient } from './hasura.client.js';
+import { StakingService } from '../staking/staking.service.js';
 
 type DirectorySort = 'score_desc' | 'fee_asc' | 'capacity_desc' | 'recent';
 
@@ -45,7 +46,8 @@ export class DirectoryRepository {
   constructor(
     private readonly prisma: PrismaService,
     private readonly hasura: HasuraClient,
-    private readonly configService: ConfigService
+    private readonly configService: ConfigService,
+    private readonly stakingService: StakingService
   ) {
     const fallbackTtl = Number.parseInt(process.env.DIRECTORY_CACHE_TTL_MS ?? '', 10);
     this.cacheTtlMs = this.resolvePositiveNumber(
@@ -83,6 +85,8 @@ export class DirectoryRepository {
     const positionMap = new Map(positions.map((item) => [item.warehouseAddress.toLowerCase(), item]));
     const feeMap = new Map(fees.map((item) => [item.warehouseAddress.toLowerCase(), item]));
 
+    await this.enrichFromOnChainIntent(addresses, positionMap, feeMap);
+
     const warehouses: WarehouseComputed[] = accounts.map((account) => this.mergeWarehouseData(account, positionMap, feeMap, hasuraProfiles));
 
     const filtered = this.applyFilters(warehouses, normalized);
@@ -115,6 +119,49 @@ export class DirectoryRepository {
       generatedAt: new Date(now),
       cacheHit: false
     };
+  }
+
+  private async enrichFromOnChainIntent(
+    addresses: string[],
+    positionMap: Map<string, { stakedAmount: bigint; updatedAt: Date | null }>,
+    feeMap: Map<string, { feePerUnit: number; updatedAt: Date | null }>
+  ): Promise<void> {
+    const missing = new Set<string>();
+    for (const address of addresses) {
+      const key = address.toLowerCase();
+      const position = positionMap.get(key);
+      const fee = feeMap.get(key);
+      if (!position || !fee || position.stakedAmount <= 0n) {
+        missing.add(key);
+      }
+    }
+    if (missing.size === 0) {
+      return;
+    }
+
+    const now = new Date();
+    const lookups = await Promise.allSettled(
+      Array.from(missing).map(async (addr) => ({ addr, intent: await this.stakingService.getIntent(addr) }))
+    );
+
+    for (const result of lookups) {
+      if (result.status !== 'fulfilled') {
+        this.logger.debug?.(`On-chain intent fetch rejected: ${this.stringifyError(result.reason)}`);
+        continue;
+      }
+      const payload = result.value.intent;
+      if (!payload?.data) {
+        continue;
+      }
+      const stakedAmount = BigInt(payload.data.stakedAmount ?? 0);
+      const feePerUnit = Number.isFinite(payload.data.feePerUnit) ? payload.data.feePerUnit : undefined;
+      if (stakedAmount > 0n) {
+        positionMap.set(result.value.addr, { stakedAmount, updatedAt: now });
+      }
+      if (typeof feePerUnit === 'number') {
+        feeMap.set(result.value.addr, { feePerUnit, updatedAt: now });
+      }
+    }
   }
 
   private mergeWarehouseData(

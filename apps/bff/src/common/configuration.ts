@@ -5,10 +5,10 @@ export default () => ({
   hasuraAdminSecret: process.env.HASURA_ADMIN_SECRET || '',
   hasuraAuthToken: process.env.HASURA_AUTH_TOKEN || '',
   // Prefer Aptos Labs gateway which supports both REST and GraphQL with API key
-  indexerUrl: process.env.APTOS_INDEXER_URL || 'https://api.testnet.aptoslabs.com/v1/graphql',
+  indexerUrl: process.env.APTOS_INDEXER_URL || 'https://indexer.testnet.aptoslabs.com/v1/graphql',
   // Base URL for Aptos Fullnode REST. Used as a fallback when the Indexer
   // does not expose certain fields (e.g., transaction hash/timestamp) in POC.
-  nodeApiUrl: process.env.APTOS_NODE_API_URL || 'https://api.testnet.aptoslabs.com/v1',
+  nodeApiUrl: process.env.APTOS_NODE_API_URL || 'https://fullnode.testnet.aptoslabs.com/v1',
   // Optional API key for Aptos Build fullnode endpoints (e.g. api.buildwithaptos.com).
   // When set, BFF will send header `x-aptos-api-key` in fullnode fallback calls.
   aptosApiKey: process.env.APTOS_NODE_API_KEY || '',

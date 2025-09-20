@@ -57,8 +57,8 @@ export class StakingListener implements OnModuleInit, OnModuleDestroy {
     private readonly repo: StakingRepository,
     private readonly metrics?: MetricsService
   ) {
-    this.indexerUrl = this.config.get<string>('indexerUrl', 'https://api.testnet.aptoslabs.com/v1/graphql');
-    this.nodeApiUrl = this.config.get<string>('nodeApiUrl', 'https://api.testnet.aptoslabs.com/v1');
+    this.indexerUrl = this.config.get<string>('indexerUrl', 'https://indexer.testnet.aptoslabs.com/v1/graphql');
+    this.nodeApiUrl = this.config.get<string>('nodeApiUrl', 'https://fullnode.testnet.aptoslabs.com/v1');
     this.aptosApiKey = this.config.get<string>('aptosApiKey', '');
     const defaultInterval = 45_000;
     const defaultPageSize = 10;

@@ -199,7 +199,7 @@ export const WarehouseStakingCard = ({ refreshToken, onAction }: WarehouseStakin
   };
 
   return (
-    <Card className="h-full">
+    <Card className="h-full bg-white">
       <CardHeader className="space-y-1">
         <CardTitle>质押与费用概览</CardTitle>
         <CardDescription>关注质押是否达标，以及当前生效的仓储费率。</CardDescription>

@@ -1,6 +1,7 @@
 import type { WarehouseSummary } from '@haigo/shared/dto/orders';
 import { DirectoryRepository, type DirectoryListOptions } from '../src/modules/directory/directory.repository.js';
 import type { HasuraWarehouseProfile } from '../src/modules/directory/hasura.client.js';
+import type { StakingIntentDto } from '@haigo/shared/dto/staking';
 
 const lower = (value: string) => value.toLowerCase();
 
@@ -70,6 +71,18 @@ class StubHasuraClient {
   }
 }
 
+class StubStakingService {
+  constructor(private readonly intents: Record<string, StakingIntentDto | null>) {}
+
+  async getIntent(address: string) {
+    const intent = this.intents[address.toLowerCase()];
+    if (!intent) {
+      return null;
+    }
+    return { data: intent, meta: { source: 'onchain' as const } };
+  }
+}
+
 const createRepository = (
   options?: {
     hasura?: Record<string, HasuraWarehouseProfile>;
@@ -77,6 +90,7 @@ const createRepository = (
     positions?: StubPrismaService['data']['positions'];
     fees?: StubPrismaService['data']['fees'];
     cacheTtlMs?: number;
+    intents?: Record<string, StakingIntentDto | null>;
   }
 ) => {
   const prisma = new StubPrismaService({
@@ -117,7 +131,13 @@ const createRepository = (
     get: jest.fn((key: string) => (key === 'directory.cacheTtlMs' ? options?.cacheTtlMs ?? 1000 : undefined))
   } as unknown as { get: (key: string) => unknown };
 
-  const repo = new DirectoryRepository(prisma as any, hasura as any, configService as any);
+  const staking = new StubStakingService(
+    options?.intents ?? {
+      '0xbbb2': { warehouseAddress: '0xbbb2', stakedAmount: '0', minRequired: '0', feePerUnit: 0 }
+    }
+  );
+
+  const repo = new DirectoryRepository(prisma as any, hasura as any, configService as any, staking as any);
   return { repo, hasura };
 };
 
@@ -169,6 +189,27 @@ describe('DirectoryRepository', () => {
     expect(warehouse).toBeDefined();
     expect(warehouse?.name).toMatch(/Warehouse/i);
     expect(typeof warehouse?.stakingScore).toBe('number');
+  });
+
+  it('enriches warehouses from on-chain intent when cache is missing', async () => {
+    const { repo } = createRepository({
+      positions: [],
+      fees: [],
+      intents: {
+        '0xccc3': { warehouseAddress: '0xccc3', stakedAmount: '2000000000', minRequired: '0', feePerUnit: 15 }
+      },
+      accounts: [
+        { accountAddress: '0xCCC3', profileUri: null, chainTimestamp: new Date('2024-03-01T00:00:00Z') }
+      ]
+    });
+
+    const result = await list(repo, { available: true });
+
+    expect(result.items).toHaveLength(1);
+    const warehouse = result.items[0] as WarehouseSummary & { feePerUnit?: number };
+    expect(warehouse.address.toLowerCase()).toBe('0xccc3');
+    expect(warehouse.availability).toBe('available');
+    expect(warehouse.feePerUnit).toBe(15);
   });
 
   it('filters by q against Hasura name (post-aggregation)', async () => {

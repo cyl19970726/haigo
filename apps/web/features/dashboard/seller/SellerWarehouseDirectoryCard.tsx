@@ -116,6 +116,15 @@ const formatCapacity = (value?: number) => {
   return `${value.toLocaleString()} APT`;
 };
 
+const formatAddressLabel = (address?: string) => {
+  if (!address) return '—';
+  const normalized = address.trim();
+  if (normalized.length <= 18) {
+    return normalized;
+  }
+  return `${normalized.slice(0, 10)}…${normalized.slice(-6)}`;
+};
+
 const extractTxnHash = (result: unknown): string | undefined => {
   if (typeof result === 'string') return result;
   if (result && typeof result === 'object') {
@@ -312,9 +321,21 @@ export function SellerWarehouseDirectoryCard() {
           ) : null}
 
           {showEmptyState ? (
-            <div className="flex flex-col items-start gap-2 rounded-xl border border-dashed border-border/80 bg-muted/30 p-8 text-sm text-muted-foreground">
+            <div className="flex flex-col items-start gap-3 rounded-xl border border-dashed border-border/80 bg-muted/30 p-8 text-sm text-muted-foreground">
               <p>暂未匹配到符合条件的仓库。</p>
-              <p className="text-xs">尝试放宽搜索条件或取消“仅显示可用”筛选。</p>
+              <p className="text-xs">
+                刚完成质押的仓库可能仍在同步，可稍后刷新或放宽筛选条件。
+              </p>
+              {filters.available !== false ? (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  type="button"
+                  onClick={() => updateFilters({ available: undefined })}
+                >
+                  查看全部仓库
+                </Button>
+              ) : null}
             </div>
           ) : null}
 
@@ -328,7 +349,12 @@ export function SellerWarehouseDirectoryCard() {
                   <header className="flex items-start justify-between gap-3">
                     <div>
                       <h3 className="text-base font-semibold text-foreground">{warehouse.name}</h3>
-                      <p className="mt-1 font-mono text-[11px] text-muted-foreground">{warehouse.address}</p>
+                      <p
+                        className="mt-1 font-mono text-[11px] text-muted-foreground"
+                        title={warehouse.address}
+                      >
+                        {formatAddressLabel(warehouse.address)}
+                      </p>
                     </div>
                     <span className={cn('inline-flex items-center rounded-full px-3 py-1 text-xs font-medium', AVAILABILITY_CLASSES[warehouse.availability])}>
                       {AVAILABILITY_LABELS[warehouse.availability]}

@@ -45,7 +45,7 @@ export const WarehouseQuickActionsCard = ({ onAction, walletConnected = false }:
   ];
 
   return (
-    <Card className="h-full">
+    <Card className="h-full bg-white">
       <CardHeader className="space-y-1">
         <CardTitle>快捷操作</CardTitle>
         <CardDescription>常用入口帮助你快速完成订单处理与仓库维护。</CardDescription>
@@ -55,7 +55,7 @@ export const WarehouseQuickActionsCard = ({ onAction, walletConnected = false }:
           {quickActions.map(({ title, description, href, cta, actions, disabled }) => (
             <div
               key={title}
-              className="flex flex-col gap-3 rounded-lg border border-border/60 p-3 sm:flex-row sm:items-center sm:justify-between"
+              className="flex flex-col gap-3 rounded-lg border border-border/60 bg-white p-3 sm:flex-row sm:items-center sm:justify-between"
             >
               <div className="space-y-1">
                 <p className="text-sm font-medium text-foreground">{title}</p>

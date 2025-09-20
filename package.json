@@ -13,7 +13,8 @@
     "build": "pnpm --filter @haigo/web build && pnpm --filter @haigo/bff build",
     "deploy:testnet": "bash scripts/deploy_aptos_testnet.sh",
     "move:compile": "pnpm --filter @haigo/move compile",
-    "move:test": "pnpm --filter @haigo/move test"
+    "move:test": "pnpm --filter @haigo/move test",
+    "credit:full": "./scripts/set_full_credit.sh"
   },
   "workspaces": [
     "move",

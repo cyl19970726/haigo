@@ -217,3 +217,8 @@ Mobile Sheet
 - Post-release telemetry: number of inline orders, success rate, filter usage.
 - Future work: extend warehouse detail data (audit reports, testimonials), allow “favorite” warehouses, integrate AI recommendations.
 
+
+## Notes (2024-xx update)
+- Directory 聚合新增链上兜底能力：当 Prisma 缓存缺失时，调用 staking view 补齐质押金额与费率，并根据结果更新 availability。
+- 事件监听默认使用 `https://indexer.testnet.aptoslabs.com/v1/graphql`，部署时需确认 `APTOS_INDEXER_URL` 指向该地址，避免仓库列表不同步。
+

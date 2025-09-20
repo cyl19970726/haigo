@@ -206,7 +206,7 @@ export function WarehouseStakingActionDialog({ mode, open, onClose, onSuccess }:
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="max-w-xl border-none bg-transparent p-0 shadow-none">
-        <Card className="border border-border bg-background text-foreground shadow-xl sm:rounded-2xl">
+        <Card className="border border-border bg-white text-foreground shadow-xl sm:rounded-2xl">
           <CardHeader className="px-6 pt-6 pb-0">
             <div className="flex items-start justify-between gap-4">
               <div className="space-y-1">
