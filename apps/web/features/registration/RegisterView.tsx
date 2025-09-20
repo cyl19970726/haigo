@@ -17,6 +17,9 @@ import { uploadIdentityDocument, fetchAccountProfile } from '../../lib/api/regis
 import { hashFileBlake3 } from '../../lib/crypto/blake3';
 import { NetworkGuard } from '../../lib/wallet/network-guard';
 import { useWalletContext } from '../../lib/wallet/context';
+import { useRouter } from 'next/navigation';
+import { ensureSession } from '../../lib/session/ensureSession';
+import { useSessionProfile } from '../../lib/session/profile-context';
 
 const ROLE_OPTIONS = [
   { value: 'seller', label: 'Seller' },
@@ -130,6 +133,7 @@ const saveCache = (address: string, payload?: PendingProfileCache | null) => {
 const buildExplorerUrl = (hash: string, network: string) => `${EXPLORER_BASE_URL}/txn/${hash}?network=${network}`;
 
 export function RegisterView() {
+  const router = useRouter();
   const {
     status,
     accountAddress,
@@ -142,8 +146,13 @@ export function RegisterView() {
     refreshNetworkStatus,
     connectionError,
     aptos,
-    signAndSubmitTransaction
+    signAndSubmitTransaction,
+    signMessage
   } = useWalletContext();
+  const { setSessionProfile } = useSessionProfile();
+
+  type SignAndSubmitTransactionInput = Parameters<typeof signAndSubmitTransaction>[0];
+  type RegisterTransactionInput = SignAndSubmitTransactionInput & { sender: string };
 
   const [role, setRole] = useState<RoleValue>('seller');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -161,6 +170,8 @@ export function RegisterView() {
   const [accountError, setAccountError] = useState<string | null>(null);
   const [simulationState, setSimulationState] = useState<SimulationState>({ status: 'idle' });
   const [transactionState, setTransactionState] = useState<TransactionState>({ stage: 'idle' });
+  const [redirectAnnounce, setRedirectAnnounce] = useState<string | null>(null);
+  const [showRedirectCta, setShowRedirectCta] = useState(false);
 
   const hashingRun = useRef(0);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -419,24 +430,36 @@ export function RegisterView() {
     }
   };
 
-  const registerFunction = `${APTOS_MODULE_ADDRESS}::registry::${role === 'seller' ? 'register_seller' : 'register_warehouse'}`;
+  const registerFunction = useMemo(
+    () =>
+      `${APTOS_MODULE_ADDRESS}::registry::${role === 'seller' ? 'register_seller' : 'register_warehouse'}` as `${string}::${string}::${string}`,
+    [role]
+  );
 
-  const buildRegisterTransaction = useCallback(
-    async (hashValue: string): Promise<SimpleTransaction> => {
+  const buildRegisterTransactionInput = useCallback(
+    (hashValue: string): RegisterTransactionInput => {
       if (!accountAddress) {
         throw new Error('Connect your wallet before submitting the transaction.');
       }
 
-      return aptos.transaction.build.simple({
+      return {
         sender: accountAddress,
         data: {
           function: registerFunction,
           typeArguments: [],
           functionArguments: [REGISTRY_MODULE.HASH_ALGORITHM_BLAKE3, hashValue]
         }
-      });
+      } satisfies RegisterTransactionInput;
     },
-    [accountAddress, aptos, registerFunction]
+    [accountAddress, registerFunction]
+  );
+
+  const buildRegisterTransaction = useCallback(
+    async (hashValue: string): Promise<SimpleTransaction> => {
+      const transactionInput = buildRegisterTransactionInput(hashValue);
+      return aptos.transaction.build.simple(transactionInput);
+    },
+    [aptos, buildRegisterTransactionInput]
   );
 
   const simulateRegistration = useCallback(async () => {
@@ -557,16 +580,21 @@ export function RegisterView() {
 
     setTransactionState({ stage: 'submitting' });
     try {
+      const transactionInput = buildRegisterTransactionInput(activeHash);
+
       const transaction =
         simulationState.status === 'success'
           ? simulationState.transaction
           : await buildRegisterTransaction(activeHash);
 
-      const result = await signAndSubmitTransaction(transaction);
+      const result = await signAndSubmitTransaction(transactionInput);
       const txnHash =
         typeof result === 'string'
           ? result
-          : result?.hash || result?.transactionHash || (result as any)?.txnHash;
+          : result?.hash ??
+            (typeof (result as any)?.transactionHash === 'string' ? (result as any).transactionHash : undefined) ??
+            (typeof (result as any)?.txnHash === 'string' ? (result as any).txnHash : undefined) ??
+            (typeof (result as any)?.result?.hash === 'string' ? (result as any).result.hash : undefined);
 
       if (!txnHash) {
         throw new Error('Wallet did not return a transaction hash.');
@@ -582,7 +610,7 @@ export function RegisterView() {
         const immediateProfile: AccountProfile = {
           address: accountAddress,
           role,
-          profileHash: { algo: 'blake3', value: activeHash },
+          profileHash: { algorithm: 'blake3', value: activeHash },
           profileUri: profileUri || cachedProfile?.profileUri,
           registeredAt: new Date().toISOString(),
           orderCount: accountInfo?.orderCount
@@ -610,6 +638,7 @@ export function RegisterView() {
     activeHash,
     simulationState,
     buildRegisterTransaction,
+    buildRegisterTransactionInput,
     signAndSubmitTransaction,
     networkStatus.expected,
     pollTransaction,
@@ -634,6 +663,43 @@ export function RegisterView() {
   const isSubmitted = ['submitting', 'pending', 'success', 'failed'].includes(transactionState.stage);
   const isPending = ['pending', 'success'].includes(transactionState.stage);
   const isExecuted = transactionState.stage === 'success';
+
+  // Auto-redirect to role dashboard after on-chain success and profile available
+  useEffect(() => {
+    if (transactionState.stage !== 'success') return;
+
+    const timer = setTimeout(() => setShowRedirectCta(true), 60_000);
+
+    if (accountAddress) {
+      void (async () => {
+        try {
+          const profile = await ensureSession(accountAddress, signMessage ?? undefined, accountPublicKey ?? undefined);
+          if (profile) {
+            setSessionProfile(profile);
+          }
+          const targetRole = profile?.role ?? accountInfo?.role ?? role;
+          const path = targetRole === 'seller' ? '/dashboard/seller' : '/dashboard/warehouse';
+          setRedirectAnnounce('Registration succeeded, redirecting to your dashboard…');
+          setTimeout(() => router.push(path), 400);
+        } catch (error) {
+          const message = error instanceof Error ? error.message : 'Automatic login failed. Use the dashboard button below.';
+          setRedirectAnnounce(message);
+          setShowRedirectCta(true);
+        }
+      })();
+    }
+
+    return () => clearTimeout(timer);
+  }, [
+    transactionState.stage,
+    accountInfo?.role,
+    accountAddress,
+    router,
+    signMessage,
+    accountPublicKey,
+    role,
+    setSessionProfile
+  ]);
 
   return (
     <main className="register-shell" aria-live="polite">
@@ -1035,12 +1101,38 @@ export function RegisterView() {
                         <code>{accountInfo.profileHash.value}</code>.
                       </p>
                       <div className="registration-success__actions">
-                        <a className="registration-success__cta" href="/app">
+                        <a
+                          className="registration-success__cta"
+                          href={accountInfo.role === 'seller' ? '/dashboard/seller' : '/dashboard/warehouse'}
+                        >
                           Go to dashboard
                         </a>
                         <a className="registration-success__cta registration-success__cta--secondary" href="/orders">
                           View orders
                         </a>
+                      </div>
+                    </div>
+                  )}
+                  {transactionState.stage === 'success' && !accountInfo && showRedirectCta && (
+                    <div className="registration-success">
+                      <p>
+                        Registration succeeded on-chain. Indexing may take a moment. You can proceed to your dashboard now
+                        or refresh status.
+                      </p>
+                      <div className="registration-success__actions">
+                        <a
+                          className="registration-success__cta"
+                          href={role === 'seller' ? '/dashboard/seller' : '/dashboard/warehouse'}
+                        >
+                          Go to dashboard
+                        </a>
+                        <button
+                          type="button"
+                          className="registration-success__cta registration-success__cta--secondary"
+                          onClick={() => void refreshAccountInfo()}
+                        >
+                          Refresh status
+                        </button>
                       </div>
                     </div>
                   )}
@@ -1050,6 +1142,10 @@ export function RegisterView() {
           )}
         </>
       </NetworkGuard>
+      {/* Aria-live region for redirect announcements */}
+      <div aria-live="polite" aria-atomic="true" style={{ position: 'absolute', left: -9999 }}>
+        {redirectAnnounce ?? ''}
+      </div>
     </main>
   );
 }

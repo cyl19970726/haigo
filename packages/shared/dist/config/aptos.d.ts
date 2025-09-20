@@ -8,6 +8,7 @@ export interface AptosConfig {
     faucetUrl?: string;
     modules: {
         registry: string;
+        orders: string;
     };
 }
 export declare const APTOS_CONFIG_DEV: AptosConfig;
@@ -19,9 +20,18 @@ export declare const REGISTRY_MODULE: {
     readonly ROLE_WAREHOUSE: 2;
     readonly HASH_ALGORITHM_BLAKE3: 1;
 };
+export declare const ORDERS_MODULE_NAME: "orders";
+export declare const ORDER_EVENT_TYPES: {
+    readonly ORDER_CREATED: "OrderCreated";
+    readonly CHECKED_IN: "CheckedIn";
+    readonly SET_IN_STORAGE: "SetInStorage";
+    readonly CHECKED_OUT: "CheckedOut";
+};
 export declare const EVENT_TYPES: {
     readonly SELLER_REGISTERED: "SellerRegistered";
     readonly WAREHOUSE_REGISTERED: "WarehouseRegistered";
 };
 export declare const APTOS_MODULE_ADDRESS: string;
+export declare const ORDERS_MODULE_ADDRESS: string;
 export declare const NETWORK_NAME: string;
+export declare const APTOS_COIN_TYPE = "0x1::aptos_coin::AptosCoin";

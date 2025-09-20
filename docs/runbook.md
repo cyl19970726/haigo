@@ -35,7 +35,8 @@ docker compose up -d postgres hasura bff
 | `HASURA_GRAPHQL_ENDPOINT` | Hasura GraphQL URL | `http://localhost:8080/v1/graphql` |
 | `HASURA_ADMIN_SECRET` | Hasura 管理口令 | `changeme` |
 | `APTOS_INDEXER_ENDPOINT` | 官方 Indexer GraphQL URL | `https://api.testnet.aptoslabs.com/v1/graphql` |
-| `MEDIA_ROOT` | 本地媒体存储目录 | `./storage/media` |
+| `MEDIA_STORAGE_DIR` | 本地媒体存储目录 | `./storage/media` |
+| `MEDIA_PUBLIC_PREFIX` | 媒体资源静态访问前缀（可选） | `/media` |
 | `MEDIA_MAX_FILE_MB` | 上传限制 | `200` |
 
 > 提示：部署环境应改用 Secrets 管理（阿里云 KMS、GitHub Secrets 等），避免明文存储私钥。
@@ -54,6 +55,12 @@ docker compose up -d postgres hasura bff
    aptos move test
    aptos move publish --profile testnet
    ```
+4. 若测试网账户余额不足，先通过官方 Faucet 领取测试币：
+   ```bash
+   aptos account fund-with-faucet --account <YOUR_ACCOUNT_ADDRESS> --amount 100000000 --url https://faucet.testnet.aptoslabs.com
+   ```
+   - 上述命令一次领取 0.1 APT，可按需重复；也可访问 https://faucet.testnet.aptoslabs.com/ 使用网页端。
+   - 团队内部若提供集中钱包，可参考内部流程从共享钱包转账测试币。
 4. 部署后记录模块地址，更新 `packages/shared/config/aptos.ts`。
 5. 使用 `aptos account list` 或官方 Indexer 查询事件，确保部署成功。
 
@@ -67,6 +74,8 @@ docker compose up -d postgres hasura bff
    - `/api/accounts/:address`
    - `/api/orders/:record_uid`
    - `/api/media/uploads`
+5. 若使用自定义存储路径，设置 `MEDIA_STORAGE_DIR`（默认输出到仓库下 `storage/media`）与可选的 `MEDIA_PUBLIC_PREFIX`，确保对应目录具有写入权限。
+6. 手动验证媒体上传：构造包含 `record_uid`、`stage`、`category`、`hash_value` 与文件体的 `multipart/form-data` 请求（例如使用 `curl -F`），检查响应中的 `storagePath` 与 `hashValue` 与客户端一致，并确认服务器落盘文件存在。
 
 ## 6. Hasura 设置
 1. 通过 Docker Compose 启动 Hasura (`localhost:8080`)。
@@ -85,6 +94,7 @@ docker compose up -d postgres hasura bff
    - 钱包连接 → 注册（调用合约）
    - 创建订单 → 检查 BFF 时间线
    - 上传媒体 → 哈希校验提示
+   - 手动下单巡检：选择仓库 → 调整保险费率 → 运行 Gas 模拟 → 签名交易 → 跳转订单时间线并核对最新事件。
 
 ## 8. 测试策略
 - Move：`aptos move test`（覆盖注册、订单、状态机异常）。
@@ -128,3 +138,4 @@ docker compose up -d postgres hasura bff
 - Hasura metadata 版本库位置。
 - OSS 迁移步骤（待定）。
 - 测试脚本自动化与 E2E 方案。
+- Order lifecycle 模块发布后，需在集成阶段更新 `packages/shared/src/config/aptos.ts` 与 BFF 环境变量；与 BFF/前端团队同步安排窗口。

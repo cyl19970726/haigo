@@ -1,0 +1,14 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "baseUrl": "..",
+    "paths": {
+      "@shared/*": ["packages/shared/src/*"]
+    },
+    "types": ["node"],
+    "lib": ["ES2021", "DOM"]
+  },
+  "include": [
+    "tests/**/*.ts"
+  ]
+}

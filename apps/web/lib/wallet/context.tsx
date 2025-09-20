@@ -11,8 +11,9 @@ import {
 } from 'react';
 import { AptosWalletAdapterProvider, useWallet } from '@aptos-labs/wallet-adapter-react';
 import { Aptos, AptosConfig, Network } from '@aptos-labs/ts-sdk';
+import { buildNetworkStatus, normalizeNetworkInput } from './network';
 
-const EXPECTED_NETWORK = (process.env.NEXT_PUBLIC_APTOS_NETWORK || 'testnet').toLowerCase();
+const EXPECTED_NETWORK = process.env.NEXT_PUBLIC_APTOS_NETWORK || 'testnet';
 
 export type WalletConnectionStatus = 'disconnected' | 'connecting' | 'connected';
 
@@ -29,8 +30,8 @@ export interface WalletContextValue {
   accountAddress?: string;
   accountPublicKey?: string;
   walletName?: string;
-  availableWallets: { name: string; icon: string; readyState: string }[];
-  connect: (walletName?: string) => Promise<void>;
+  availableWallets: { name: string; icon: string; readyState?: string }[];
+  connect: (walletName: string) => Promise<void>;
   disconnect: () => Promise<void>;
   networkStatus: NetworkStatus;
   refreshNetworkStatus: (retries?: number) => Promise<NetworkStatus>;
@@ -38,12 +39,13 @@ export interface WalletContextValue {
   aptos: Aptos;
   signAndSubmitTransaction: ReturnType<typeof useWallet>['signAndSubmitTransaction'];
   signTransaction: ReturnType<typeof useWallet>['signTransaction'];
+  signMessage: ReturnType<typeof useWallet>['signMessage'];
 }
 
 const WalletContext = createContext<WalletContextValue | undefined>(undefined);
 
 const resolveNetwork = (): Network => {
-  switch (EXPECTED_NETWORK) {
+  switch ((EXPECTED_NETWORK || '').toLowerCase()) {
     case 'mainnet':
       return Network.MAINNET;
     case 'testnet':
@@ -53,19 +55,21 @@ const resolveNetwork = (): Network => {
     case 'local':
       return Network.LOCAL;
     default:
-      return Network.DEVNET;
+      return Network.TESTNET;
   }
 };
 
-const computeNetworkStatus = (actual?: string | null): NetworkStatus => {
-  const normalizedActual = actual?.toLowerCase();
-  return {
-    expected: EXPECTED_NETWORK,
-    actual: normalizedActual,
-    isMatch: Boolean(normalizedActual && normalizedActual === EXPECTED_NETWORK),
-    lastChecked: Date.now(),
-    error: normalizedActual ? undefined : 'Wallet network unavailable'
-  };
+const resolveExpectedNetwork = (): Network => normalizeNetworkInput(EXPECTED_NETWORK) ?? resolveNetwork();
+
+const computeNetworkStatus = (params?: { name?: string | null; chainId?: number | null }): NetworkStatus => {
+  const expected = resolveExpectedNetwork();
+  const result = buildNetworkStatus({
+    expected,
+    actualName: params?.name,
+    actualChainId: params?.chainId ?? null,
+    lastChecked: Date.now()
+  });
+  return result;
 };
 
 const WalletContextBridge = ({ children }: { children: ReactNode }) => {
@@ -74,16 +78,19 @@ const WalletContextBridge = ({ children }: { children: ReactNode }) => {
     connect: rawConnect,
     disconnect: rawDisconnect,
     connected,
-    connecting,
+    isLoading,
     wallet,
     wallets,
     network,
     signAndSubmitTransaction,
-    signTransaction
+    signTransaction,
+    signMessage
   } = useWallet();
 
   const [connectionError, setConnectionError] = useState<string>();
-  const [networkStatus, setNetworkStatus] = useState<NetworkStatus>(() => computeNetworkStatus(network?.name));
+  const [networkStatus, setNetworkStatus] = useState<NetworkStatus>(() =>
+    computeNetworkStatus({ name: network?.name, chainId: network?.chainId })
+  );
 
   const aptos = useMemo(() => {
     const config = new AptosConfig({ network: resolveNetwork() });
@@ -91,38 +98,50 @@ const WalletContextBridge = ({ children }: { children: ReactNode }) => {
   }, []);
 
   useEffect(() => {
-    setNetworkStatus(computeNetworkStatus(network?.name));
-  }, [network?.name, connected]);
+    setNetworkStatus(computeNetworkStatus({ name: network?.name, chainId: network?.chainId }));
+  }, [network?.name, network?.chainId, connected]);
 
   const refreshNetworkStatus = useCallback(
     async (retries = 0): Promise<NetworkStatus> => {
       let attempt = 0;
-      let status = computeNetworkStatus(network?.name);
+      let status = computeNetworkStatus({ name: network?.name, chainId: network?.chainId });
 
       while (!status.actual && attempt < retries) {
         attempt += 1;
         await new Promise((resolve) => setTimeout(resolve, Math.min(2000, 250 * 2 ** attempt)));
-        status = computeNetworkStatus(network?.name);
+        status = computeNetworkStatus({ name: network?.name, chainId: network?.chainId });
       }
 
       setNetworkStatus(status);
       return status;
     },
-    [network?.name]
+    [network?.name, network?.chainId]
   );
 
   const connect = useCallback(
-    async (walletName?: string) => {
+    async (walletName: string) => {
       setConnectionError(undefined);
+
+      // 避免对已连接的钱包重复发起连接请求（Petra 会抛出 "wallet is already connected"）
+      if (wallet?.name === walletName && connected) {
+        return;
+      }
+
       try {
         await rawConnect(walletName);
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Failed to connect wallet';
+
+        // 对已经连接的特殊报错视为非致命情况，直接忽略
+        if (message?.toLowerCase().includes('already connected')) {
+          return;
+        }
+
         setConnectionError(message);
         throw error;
       }
     },
-    [rawConnect]
+    [connected, rawConnect, wallet?.name]
   );
 
   const disconnect = useCallback(async () => {
@@ -131,7 +150,7 @@ const WalletContextBridge = ({ children }: { children: ReactNode }) => {
     setNetworkStatus(computeNetworkStatus(undefined));
   }, [rawDisconnect]);
 
-  const status: WalletConnectionStatus = connecting ? 'connecting' : connected ? 'connected' : 'disconnected';
+  const status: WalletConnectionStatus = isLoading ? 'connecting' : connected ? 'connected' : 'disconnected';
 
   const availableWallets = useMemo(
     () =>
@@ -145,8 +164,8 @@ const WalletContextBridge = ({ children }: { children: ReactNode }) => {
 
   const value: WalletContextValue = {
     status,
-    accountAddress: account?.address,
-    accountPublicKey: account?.publicKey,
+    accountAddress: account?.address?.toString(),
+    accountPublicKey: account?.publicKey?.toString(),
     walletName: wallet?.name,
     availableWallets,
     connect,
@@ -156,7 +175,8 @@ const WalletContextBridge = ({ children }: { children: ReactNode }) => {
     connectionError,
     aptos,
     signAndSubmitTransaction,
-    signTransaction
+    signTransaction,
+    signMessage
   };
 
   return <WalletContext.Provider value={value}>{children}</WalletContext.Provider>;

@@ -1,8 +1,18 @@
 'use client';
 
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { WalletContextProvider } from '../lib/wallet/context';
+import { SessionProfileProvider } from '../lib/session/profile-context';
 
 export function Providers({ children }: { children: ReactNode }) {
-  return <WalletContextProvider>{children}</WalletContextProvider>;
+  const [queryClient] = useState(() => new QueryClient());
+
+  return (
+    <QueryClientProvider client={queryClient}>
+      <WalletContextProvider>
+        <SessionProfileProvider>{children}</SessionProfileProvider>
+      </WalletContextProvider>
+    </QueryClientProvider>
+  );
 }

@@ -35,6 +35,19 @@ export interface AccountResponse {
     };
     registeredAt: string;
     isVerified: boolean;
+    profileUri?: string;
+    orderCount?: number;
+}
+export interface AccountProfile {
+    address: string;
+    role: 'seller' | 'warehouse';
+    profileHash: {
+        algo: 'blake3';
+        value: string;
+    };
+    profileUri?: string;
+    registeredAt: string;
+    orderCount?: number;
 }
 export interface RegisterAccountRequest {
     role: 'seller' | 'warehouse';

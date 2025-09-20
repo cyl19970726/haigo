@@ -1,0 +1,136 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum AccountRole {
+  seller
+  warehouse
+}
+
+model Account {
+  accountAddress   String   @id @map("account_address")
+  role             AccountRole
+  profileHashAlgo  String   @default("blake3") @map("profile_hash_algo")
+  profileHashValue String   @map("profile_hash_value")
+  profileUri       String?  @map("profile_uri")
+  registeredBy     String   @map("registered_by")
+  txnVersion       BigInt   @map("txn_version")
+  eventIndex       BigInt   @map("event_index")
+  txnHash          String   @map("txn_hash")
+  chainTimestamp   DateTime @map("chain_timestamp")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  @@unique([txnVersion, eventIndex], map: "accounts_event_uniq")
+  @@map("accounts")
+}
+
+
+model MediaAsset {
+  id              BigInt   @id @default(autoincrement())
+  recordUid       String   @map("record_uid")
+  stage           String
+  category        String
+  storagePath     String   @map("storage_path")
+  publicPath      String?  @map("public_path")
+  hashAlgo        String   @map("hash_algo")
+  hashValue       String   @map("hash_value")
+  mimeType        String?  @map("mime_type")
+  sizeBytes       Int?     @map("size_bytes")
+  uploadedBy      String?  @map("uploaded_by")
+  uploadedAt      DateTime @default(now()) @map("uploaded_at")
+  matchedOffchain Boolean  @default(false) @map("matched_offchain")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@unique([recordUid, storagePath], map: "media_assets_record_path_uniq")
+  @@index([recordUid], map: "media_assets_record_uid_idx")
+  @@index([hashValue], map: "media_assets_hash_value_idx")
+  @@map("media_assets")
+}
+
+// -------- O1: Orders (planned) --------
+
+enum OrderStatus {
+  ORDER_DRAFT
+  ONCHAIN_CREATED
+  WAREHOUSE_IN
+  IN_STORAGE
+  WAREHOUSE_OUT
+}
+
+model Order {
+  id               BigInt      @id @default(autoincrement())
+  recordUid        String      @unique @map("record_uid")
+  creatorAddress   String      @map("creator_address")
+  warehouseAddress String      @map("warehouse_address")
+  status           OrderStatus
+  orderId          Int?        @map("order_id")
+  payloadJson      Json?       @map("payload_json")
+  txnVersion       BigInt?     @map("txn_version")
+  eventIndex       BigInt?     @map("event_index")
+  txnHash          String?     @map("txn_hash")
+  chainTimestamp   DateTime?   @map("chain_timestamp")
+  createdAt        DateTime    @default(now()) @map("created_at")
+  updatedAt        DateTime    @updatedAt @map("updated_at")
+
+  @@index([creatorAddress], map: "orders_creator_idx")
+  @@index([warehouseAddress], map: "orders_warehouse_idx")
+  @@map("orders")
+}
+
+model OrderEvent {
+  id             BigInt    @id @default(autoincrement())
+  recordUid      String    @map("record_uid")
+  orderId        Int?      @map("order_id")
+  type           String
+  txnVersion     BigInt    @map("txn_version")
+  eventIndex     BigInt    @map("event_index")
+  txnHash        String?   @map("txn_hash")
+  chainTimestamp DateTime? @map("chain_timestamp")
+  data           Json?     @map("data")
+  createdAt      DateTime  @default(now()) @map("created_at")
+
+  @@unique([txnVersion, eventIndex], map: "order_events_cursor_uniq")
+  @@index([recordUid], map: "order_events_record_uid_idx")
+  @@map("order_events")
+}
+
+// Cursor persistence for event listeners
+model EventCursor {
+  streamName     String   @id @map("stream_name")
+  lastTxnVersion BigInt   @map("last_txn_version")
+  lastEventIndex BigInt   @map("last_event_index")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@map("event_cursors")
+}
+
+// -------- W1: Staking Cache (planned) --------
+
+model StakingPosition {
+  warehouseAddress String  @id @map("warehouse_address")
+  stakedAmount     BigInt  @map("staked_amount")
+  lastTxnVersion   BigInt? @map("last_txn_version")
+  lastEventIndex   BigInt? @map("last_event_index")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  @@index([lastTxnVersion, lastEventIndex], map: "staking_positions_cursor_idx")
+  @@map("staking_positions")
+}
+
+model StorageFeeCache {
+  warehouseAddress String @id @map("warehouse_address")
+  feePerUnit       Int    @map("fee_per_unit")
+  lastTxnVersion   BigInt? @map("last_txn_version")
+  lastEventIndex   BigInt? @map("last_event_index")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  @@index([lastTxnVersion, lastEventIndex], map: "storage_fees_cursor_idx")
+  @@map("storage_fees_cache")
+}

@@ -30,14 +30,18 @@ describe('fetchAccountProfile', () => {
     global.fetch = vi.fn(async () => new Response(JSON.stringify(payload), { status: 200 }));
 
     const result = await fetchAccountProfile(mockAddress);
-    expect(global.fetch).toHaveBeenCalledWith(`/api/accounts/${mockAddress}`, expect.any(Object));
+    expect(global.fetch).toHaveBeenCalledWith(
+      `/api/accounts/${mockAddress}`,
+      expect.objectContaining({ credentials: 'include' })
+    );
     expect(result).toEqual({
       address: mockAddress,
       role: 'seller',
-      profileHash: { algo: 'blake3', value: 'a'.repeat(64) },
+      profileHash: { algorithm: 'blake3', value: 'a'.repeat(64) },
       registeredAt: '2025-01-01T00:00:00Z',
       profileUri: 'https://example.com/profile',
-      orderCount: 3
+      orderCount: 3,
+      isVerified: true
     });
   });
 
@@ -75,7 +79,7 @@ describe('uploadIdentityDocument', () => {
     const file = new File(['content'], 'doc.pdf', { type: 'application/pdf' });
     const result = await uploadIdentityDocument({ file, address: mockAddress, role: 'seller', hash: 'b'.repeat(64) });
 
-    expect(fetchSpy).toHaveBeenCalledWith('/api/media/uploads', expect.any(Object));
+    expect(fetchSpy).toHaveBeenCalledWith('/api/media/uploads', expect.objectContaining({ credentials: 'include' }));
     expect(result).toEqual(mockResponse.data);
   });
 });

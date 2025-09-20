@@ -69,13 +69,21 @@ maybe_start_docker() {
     return
   fi
 
-  if [[ ! -f "$ROOT_DIR/docker-compose.yml" ]]; then
-    log "docker-compose.yml not present. Skipping container startup."
+  local compose_file=""
+
+  if [[ -f "$ROOT_DIR/docker-compose.yml" ]]; then
+    compose_file="$ROOT_DIR/docker-compose.yml"
+  elif [[ -f "$ROOT_DIR/docker/compose.poc.yml" ]]; then
+    compose_file="$ROOT_DIR/docker/compose.poc.yml"
+  fi
+
+  if [[ -z "$compose_file" ]]; then
+    log "no docker compose file found (expected docker-compose.yml or docker/compose.poc.yml). skipping container startup."
     return
   fi
 
-  log "starting docker services in detached mode"
-  docker compose up -d
+  log "starting docker services in detached mode using $(basename "$compose_file")"
+  docker compose -f "$compose_file" up -d
 }
 
 main() {

@@ -8,6 +8,18 @@
     ".": {
       "import": "./dist/index.js",
       "types": "./dist/index.d.ts"
+    },
+    "./config/*": {
+      "import": "./dist/config/*.js",
+      "types": "./dist/config/*.d.ts"
+    },
+    "./dto/*": {
+      "import": "./dist/dto/*.js",
+      "types": "./dist/dto/*.d.ts"
+    },
+    "./gql/*": {
+      "import": "./dist/gql/*.js",
+      "types": "./dist/gql/*.d.ts"
     }
   },
   "scripts": {

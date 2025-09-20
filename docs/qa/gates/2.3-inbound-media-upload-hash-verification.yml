@@ -1,0 +1,43 @@
+schema: 1
+story: '2.3'
+story_title: 'Inbound Media Upload & Hash Verification'
+gate: PASS
+status_reason: 'Re-verification telemetry now increments once per manual attempt and tests lock behaviour.'
+reviewer: 'Quinn (Test Architect)'
+updated: '2025-09-20T12:00:00Z'
+
+quality_score: 100
+expires: '2025-10-04T12:00:00Z'
+
+top_issues: []
+
+waiver:
+  active: false
+
+recommendations:
+  immediate: []
+  future:
+    - action: 'Consider moving hashing to a worker thread for large media files to reduce UI blocking.'
+      refs:
+        - apps/web/features/orders/inbound/useInboundMediaManager.ts
+
+evidence:
+  tests_reviewed: 16
+  risks_identified: 0
+  trace:
+    ac_covered: [1, 2, 3, 4]
+    ac_gaps: []
+
+nfr_validation:
+  security:
+    status: PASS
+    notes: 'Wallet guard and hash validation unchanged; telemetry fix is UI-only.'
+  performance:
+    status: PASS
+    notes: 'No additional hashing overhead introduced.'
+  reliability:
+    status: PASS
+    notes: 'Counter logic now deterministic and backed by tests.'
+  maintainability:
+    status: PASS
+    notes: 'Changes localized and covered by unit tests.'

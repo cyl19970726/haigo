@@ -1,0 +1,13 @@
+version: 3
+sources:
+  - name: default
+    kind: postgres
+    configuration:
+      connection_info:
+        use_db_environment_variables: true
+    tables:
+      - "!include databases/default/tables/public_accounts.yaml"
+query_collections:
+  - "!include query_collections/accounts.yaml"
+allowlist:
+  - collection: account_queries

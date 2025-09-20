@@ -366,7 +366,7 @@ export class MediaRepository {
 ## 6. 部署与环境
 - **本地开发**：
 - 使用 Docker Compose 启动 Postgres、Hasura、BFF；本地调试时直接指向 Aptos 官方 Indexer GraphQL。若需验证自建 Processor，可额外在 Aptos Build 控制台创建 No-Code Indexer 并连接本地 Postgres。
-  - 本地媒体目录挂载至 `./storage/media`，通过 `.env.local` 配置 `MEDIA_ROOT`。
+  - 本地媒体目录挂载至 `./storage/media`，通过 `.env.local` 配置 `MEDIA_STORAGE_DIR`（可选 `MEDIA_PUBLIC_PREFIX=/media`）。
   - `apps/web` 通过 `NEXT_PUBLIC_HASURA_URL`、`NEXT_PUBLIC_BFF_URL` 连接后端。
 - **测试网环境**：
   - Aptos 合约部署到测试网，模块地址写入 `packages/shared/config/aptos.ts`。
