@@ -41,7 +41,8 @@ export class StakingListener implements OnModuleInit, OnModuleDestroy {
   private lastEventIndex = -1n;
   private cooldownUntilMs = 0;
   private backoffMs = 0;
-  private readonly indexerUrl: string;
+  private readonly indexerUrls: string[];
+  private indexerCursor = 0;
   private readonly nodeApiUrl: string;
   private readonly aptosApiKey: string;
   private readonly pollingInterval: number;
@@ -57,7 +58,13 @@ export class StakingListener implements OnModuleInit, OnModuleDestroy {
     private readonly repo: StakingRepository,
     private readonly metrics?: MetricsService
   ) {
-    this.indexerUrl = this.config.get<string>('indexerUrl', 'https://indexer.testnet.aptoslabs.com/v1/graphql');
+    const urls = this.config.get<string[]>('indexerUrls');
+    const primary = this.config.get<string>('indexerUrl', 'https://indexer.testnet.aptoslabs.com/v1/graphql');
+    const candidates = Array.isArray(urls) && urls.length > 0 ? urls : [primary];
+    this.indexerUrls = Array.from(new Set(candidates.filter((url) => url && url.length > 0)));
+    if (this.indexerUrls.length === 0) {
+      this.indexerUrls.push('https://indexer.testnet.aptoslabs.com/v1/graphql');
+    }
     this.nodeApiUrl = this.config.get<string>('nodeApiUrl', 'https://fullnode.testnet.aptoslabs.com/v1');
     this.aptosApiKey = this.config.get<string>('aptosApiKey', '');
     const defaultInterval = 45_000;
@@ -138,7 +145,8 @@ export class StakingListener implements OnModuleInit, OnModuleDestroy {
       headers['x-aptos-api-key'] = this.aptosApiKey;
       headers['authorization'] = `Bearer ${this.aptosApiKey}`;
     }
-    const res = await fetch(this.indexerUrl, {
+    const endpoint = this.indexerUrls[this.indexerCursor] ?? this.indexerUrls[0];
+    const res = await fetch(endpoint, {
       method: 'POST',
       headers,
       body: JSON.stringify({
@@ -153,11 +161,38 @@ export class StakingListener implements OnModuleInit, OnModuleDestroy {
     });
     if (!res.ok) {
       const text = await res.text();
+      this.handleIndexerError(res.status, text);
       throw new Error(`Indexer responded ${res.status}: ${text}`);
     }
     const payload = (await res.json()) as { data?: { events: EventRow[] }; errors?: Array<{ message: string }> };
-    if (payload.errors?.length) throw new Error(payload.errors.map((e) => e.message).join('; '));
+    if (payload.errors?.length) {
+      const message = payload.errors.map((e) => e.message).join('; ');
+      this.handleIndexerError(0, message);
+      throw new Error(message);
+    }
     return payload.data?.events ?? [];
+  }
+
+  private handleIndexerError(status: number, responseText: string) {
+    const shouldRotate =
+      status === 429 ||
+      /monthlycredit cap/i.test(responseText) ||
+      /rate limit/i.test(responseText) ||
+      /quota/i.test(responseText);
+    if (!shouldRotate || this.indexerUrls.length <= 1) {
+      return;
+    }
+    const prev = this.indexerUrls[this.indexerCursor] ?? 'unknown';
+    this.indexerCursor = (this.indexerCursor + 1) % this.indexerUrls.length;
+    const next = this.indexerUrls[this.indexerCursor];
+    this.logger.warn(
+      `Staking listener rotating indexer endpoint due to ${status || 'error'} response. ` +
+        `Previous=${prev} Next=${next}`
+    );
+    // Enter cooldown to avoid hammering the new endpoint immediately
+    const pause = Math.max(120_000, this.backoffMs || 60_000);
+    this.backoffMs = pause;
+    this.cooldownUntilMs = Date.now() + pause;
   }
 
   private async processEvent(e: EventRow): Promise<void> {

@@ -219,7 +219,6 @@ module haigo::orders {
         registry::assert_role(warehouse, registry::role_warehouse());
 
         let total = amount + insurance_fee + platform_fee;
-        staking::assert_min_credit(seller_addr, total);
         coin::transfer<CoinType>(seller, book.platform_account, total);
 
         let now = timestamp::now_seconds();
@@ -808,8 +807,7 @@ module haigo::orders {
     }
 
     #[test(aptos_framework = @0x1, account = @haigo)]
-    #[expected_failure(abort_code = 0x30001, location = staking)]
-    public fun test_create_order_requires_credit(aptos_framework: &signer, account: &signer) acquires OrderBook {
+    public fun test_create_order_without_credit_succeeds(aptos_framework: &signer, account: &signer) acquires OrderBook {
         timestamp::set_time_has_started_for_testing(aptos_framework);
 
         let platform_addr = @0xbeef;
@@ -844,6 +842,11 @@ module haigo::orders {
             option::none(),
             option::none(),
         );
+
+        let summary = get_order_summary(1);
+        assert!(summary.status == ORDER_STATUS_CREATED, 1);
+        let pricing = get_pricing(1);
+        assert!(pricing.total == 85, 2);
     }
 
     #[test(aptos_framework = @0x1, account = @haigo)]

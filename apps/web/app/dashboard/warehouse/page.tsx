@@ -12,6 +12,8 @@ import { useWalletContext } from '../../../lib/wallet/context';
 import { Alert, AlertDescription, AlertTitle } from '../../../components/ui/alert';
 import { buttonVariants } from '../../../components/ui/button';
 import { cn } from '../../../lib/utils';
+import { useSessionProfile } from '../../../lib/session/profile-context';
+import Link from 'next/link';
 
 const supportLinks = [
   {
@@ -27,6 +29,7 @@ const supportLinks = [
 ];
 
 export default function WarehouseDashboardPage() {
+  const { sessionProfile } = useSessionProfile();
   const { status: walletStatus, networkStatus } = useWalletContext();
   const walletConnected = walletStatus === 'connected';
 
@@ -48,6 +51,53 @@ export default function WarehouseDashboardPage() {
 
   const explorerUrl = (hash?: string) =>
     hash ? `https://explorer.aptoslabs.com/txn/${hash}?network=${explorerNetwork}` : undefined;
+
+  if (!sessionProfile) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-muted/40 px-6 py-12">
+        <div className="max-w-lg space-y-4 rounded-2xl border border-border/70 bg-white p-8 text-center shadow-sm">
+          <h1 className="text-2xl font-semibold text-foreground">需要登录仓库账户</h1>
+          <p className="text-sm text-muted-foreground">
+            尚未检测到有效的仓库登录会话。请返回首页连接钱包并完成登录，然后再次访问此页面。
+          </p>
+          <div className="flex flex-wrap justify-center gap-3">
+            <Link href="/" className={buttonVariants({ variant: 'default' })}>
+              返回首页
+            </Link>
+            <button
+              type="button"
+              className={buttonVariants({ variant: 'outline' })}
+              onClick={() => window.location.reload()}
+            >
+              重新检查
+            </button>
+          </div>
+        </div>
+      </main>
+    );
+  }
+
+  if (sessionProfile.role !== 'warehouse') {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-muted/40 px-6 py-12">
+        <div className="max-w-lg space-y-4 rounded-2xl border border-border/70 bg-white p-8 text-center shadow-sm">
+          <h1 className="text-2xl font-semibold text-foreground">当前账户无仓库权限</h1>
+          <p className="text-sm text-muted-foreground">
+            检测到的登录身份为 {sessionProfile.role === 'seller' ? '商家' : '其他角色'}，无法访问仓库仪表盘。
+            如需查看仓库数据，请切换至仓库账户或重新注册。
+          </p>
+          <div className="flex flex-wrap justify-center gap-3">
+            <Link href="/dashboard/seller" className={buttonVariants({ variant: 'default' })}>
+              前往商家仪表盘
+            </Link>
+            <Link href="/register" className={buttonVariants({ variant: 'outline' })}>
+              切换/注册账户
+            </Link>
+          </div>
+        </div>
+      </main>
+    );
+  }
 
   const handleAction = (action: 'stake' | 'fee') => {
     if (!walletConnected) {

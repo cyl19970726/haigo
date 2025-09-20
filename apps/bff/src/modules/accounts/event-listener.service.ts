@@ -54,7 +54,8 @@ export class AccountsEventListener implements OnModuleInit, OnModuleDestroy {
   private backoffMs = 0;
   private sellerEventType: string;
   private warehouseEventType: string;
-  private readonly indexerUrl: string;
+  private readonly indexerUrls: string[];
+  private indexerCursor = 0;
   private readonly nodeApiUrl: string;
   private readonly pollingInterval: number;
   private readonly pageSize: number;
@@ -64,7 +65,13 @@ export class AccountsEventListener implements OnModuleInit, OnModuleDestroy {
   private readonly backfillOffsetVersions: number;
 
   constructor(private readonly configService: ConfigService, private readonly accountsRepository: AccountsRepository) {
-    this.indexerUrl = this.configService.get<string>('indexerUrl', 'https://indexer.testnet.aptoslabs.com/v1/graphql');
+    const urls = this.configService.get<string[]>('indexerUrls');
+    const primary = this.configService.get<string>('indexerUrl', 'https://indexer.testnet.aptoslabs.com/v1/graphql');
+    const candidates = Array.isArray(urls) && urls.length > 0 ? urls : [primary];
+    this.indexerUrls = Array.from(new Set(candidates.filter((url) => url && url.length > 0)));
+    if (this.indexerUrls.length === 0) {
+      this.indexerUrls.push('https://indexer.testnet.aptoslabs.com/v1/graphql');
+    }
     this.nodeApiUrl = this.configService.get<string>('nodeApiUrl', 'https://fullnode.testnet.aptoslabs.com/v1');
     this.pollingInterval = this.configService.get<number>('ingestion.pollingIntervalMs', 30_000);
     this.pageSize = this.configService.get<number>('ingestion.pageSize', 50);
@@ -234,7 +241,8 @@ export class AccountsEventListener implements OnModuleInit, OnModuleDestroy {
       headers['x-aptos-api-key'] = this.aptosApiKey;
       headers['authorization'] = `Bearer ${this.aptosApiKey}`;
     }
-    const response = await fetch(this.indexerUrl, {
+    const endpoint = this.indexerUrls[this.indexerCursor] ?? this.indexerUrls[0];
+    const response = await fetch(endpoint, {
       method: 'POST',
       headers,
       body: JSON.stringify({
@@ -250,6 +258,7 @@ export class AccountsEventListener implements OnModuleInit, OnModuleDestroy {
 
     if (!response.ok) {
       const text = await response.text();
+      this.handleIndexerError(response.status, text);
       throw new Error(`Indexer GraphQL responded with ${response.status}: ${text}`);
     }
 
@@ -259,7 +268,9 @@ export class AccountsEventListener implements OnModuleInit, OnModuleDestroy {
     };
 
     if (payload.errors && payload.errors.length > 0) {
-      throw new Error(`Indexer GraphQL errors: ${payload.errors.map((error) => error.message).join('; ')}`);
+      const message = payload.errors.map((error) => error.message).join('; ');
+      this.handleIndexerError(0, message);
+      throw new Error(`Indexer GraphQL errors: ${message}`);
     }
 
     if (!payload.data) {
@@ -267,6 +278,26 @@ export class AccountsEventListener implements OnModuleInit, OnModuleDestroy {
     }
 
     return payload.data.events ?? [];
+  }
+
+  private handleIndexerError(status: number, responseText: string) {
+    const shouldRotate =
+      status === 429 ||
+      /monthlycredit cap/i.test(responseText) ||
+      /rate limit/i.test(responseText) ||
+      /quota/i.test(responseText);
+    if (!shouldRotate || this.indexerUrls.length <= 1) {
+      return;
+    }
+    const prev = this.indexerUrls[this.indexerCursor] ?? 'unknown';
+    this.indexerCursor = (this.indexerCursor + 1) % this.indexerUrls.length;
+    const next = this.indexerUrls[this.indexerCursor];
+    this.logger.warn(
+      `Accounts listener rotating indexer endpoint due to ${status || 'error'} response. Previous=${prev} Next=${next}`
+    );
+    const pause = Math.max(120_000, this.backoffMs || 60_000);
+    this.backoffMs = pause;
+    this.cooldownUntilMs = Date.now() + pause;
   }
 
   // Inspect error messages to derive backoff trigger for 408/429

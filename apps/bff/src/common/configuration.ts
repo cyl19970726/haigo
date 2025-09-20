@@ -5,6 +5,18 @@ export default () => ({
   hasuraAdminSecret: process.env.HASURA_ADMIN_SECRET || '',
   hasuraAuthToken: process.env.HASURA_AUTH_TOKEN || '',
   // Prefer Aptos Labs gateway which supports both REST and GraphQL with API key
+  indexerUrls: (() => {
+    const fallback = 'https://indexer.testnet.aptoslabs.com/v1/graphql';
+    const raw = process.env.APTOS_INDEXER_URLS || process.env.APTOS_INDEXER_URL || fallback;
+    const parsed = raw
+      .split(',')
+      .map((value) => value.trim())
+      .filter((value) => value.length > 0);
+    if (!parsed.includes(fallback)) {
+      parsed.push(fallback);
+    }
+    return parsed;
+  })(),
   indexerUrl: process.env.APTOS_INDEXER_URL || 'https://indexer.testnet.aptoslabs.com/v1/graphql',
   // Base URL for Aptos Fullnode REST. Used as a fallback when the Indexer
   // does not expose certain fields (e.g., transaction hash/timestamp) in POC.

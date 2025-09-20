@@ -40,7 +40,8 @@ export class OrdersEventListener implements OnModuleInit, OnModuleDestroy {
   private isPolling = false;
   private lastTxnVersion = BigInt(-1);
   private lastEventIndex = BigInt(-1);
-  private readonly indexerUrl: string;
+  private readonly indexerUrls: string[];
+  private indexerCursor = 0;
   private readonly nodeApiUrl: string;
   private readonly aptosApiKey: string;
   private readonly pageSize: number;
@@ -58,7 +59,13 @@ export class OrdersEventListener implements OnModuleInit, OnModuleDestroy {
     private readonly metrics?: MetricsService,
     private readonly prisma?: PrismaService
   ) {
-    this.indexerUrl = this.config.get<string>('indexerUrl', 'https://indexer.testnet.aptoslabs.com/v1/graphql');
+    const urls = this.config.get<string[]>('indexerUrls');
+    const primary = this.config.get<string>('indexerUrl', 'https://indexer.testnet.aptoslabs.com/v1/graphql');
+    const candidates = Array.isArray(urls) && urls.length > 0 ? urls : [primary];
+    this.indexerUrls = Array.from(new Set(candidates.filter((url) => url && url.length > 0)));
+    if (this.indexerUrls.length === 0) {
+      this.indexerUrls.push('https://indexer.testnet.aptoslabs.com/v1/graphql');
+    }
     this.nodeApiUrl = this.config.get<string>('nodeApiUrl', 'https://fullnode.testnet.aptoslabs.com/v1');
     this.aptosApiKey = this.config.get<string>('aptosApiKey', '');
     this.pageSize = Number(process.env.ORDER_INGESTOR_PAGE_SIZE ?? this.config.get<number>('ingestion.pageSize', 50));
@@ -156,7 +163,8 @@ export class OrdersEventListener implements OnModuleInit, OnModuleDestroy {
       headers['authorization'] = `Bearer ${this.aptosApiKey}`;
     }
 
-    const res = await fetch(this.indexerUrl, {
+    const endpoint = this.indexerUrls[this.indexerCursor] ?? this.indexerUrls[0];
+    const res = await fetch(endpoint, {
       method: 'POST',
       headers,
       body: JSON.stringify({
@@ -171,11 +179,36 @@ export class OrdersEventListener implements OnModuleInit, OnModuleDestroy {
     });
     if (!res.ok) {
       const text = await res.text();
+      this.handleIndexerError(res.status, text);
       throw new Error(`Indexer returned ${res.status}: ${text}`);
     }
     const json = (await res.json()) as { data?: { events: OrderCreatedRecord[] }; errors?: Array<{ message: string }> };
-    if (json.errors?.length) throw new Error(json.errors.map((x) => x.message).join('; '));
+    if (json.errors?.length) {
+      const message = json.errors.map((x) => x.message).join('; ');
+      this.handleIndexerError(0, message);
+      throw new Error(message);
+    }
     return json.data?.events ?? [];
+  }
+
+  private handleIndexerError(status: number, responseText: string) {
+    const shouldRotate =
+      status === 429 ||
+      /monthlycredit cap/i.test(responseText) ||
+      /rate limit/i.test(responseText) ||
+      /quota/i.test(responseText);
+    if (!shouldRotate || this.indexerUrls.length <= 1) {
+      return;
+    }
+    const prev = this.indexerUrls[this.indexerCursor] ?? 'unknown';
+    this.indexerCursor = (this.indexerCursor + 1) % this.indexerUrls.length;
+    const next = this.indexerUrls[this.indexerCursor];
+    this.logger.warn(
+      `Order listener rotating indexer endpoint due to ${status || 'error'} response. Previous=${prev} Next=${next}`
+    );
+    const pause = Math.max(120_000, this.backoffMs || 60_000);
+    this.backoffMs = pause;
+    this.cooldownUntilMs = Date.now() + pause;
   }
 
   private deriveBackoff(err: unknown): number {

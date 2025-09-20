@@ -27,11 +27,12 @@ async function bootstrap() {
   // Startup self-check: print effective endpoints and API key presence (masked)
   try {
     const cfg = app.get(ConfigService);
+    const indexerUrls = cfg.get<string[]>('indexerUrls') ?? [];
     const indexerUrl = cfg.get<string>('indexerUrl');
     const nodeApiUrl = cfg.get<string>('nodeApiUrl');
     const hasKey = Boolean(cfg.get<string>('aptosApiKey'));
     Logger.log(
-      `Config: indexerUrl=${indexerUrl} nodeApiUrl=${nodeApiUrl} apiKeyDetected=${hasKey}`,
+      `Config: indexerUrl=${indexerUrl} indexerUrls=[${indexerUrls.join(', ')}] nodeApiUrl=${nodeApiUrl} apiKeyDetected=${hasKey}`,
       'Bootstrap'
     );
   } catch {}
